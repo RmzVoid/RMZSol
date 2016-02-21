@@ -1,0 +1,91 @@
+;
+; RMZDrv.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=Sample ; TODO: edit Class
+ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171} ; TODO: edit ClassGuid
+Provider=%ManufacturerName%
+CatalogFile=RMZDrv.cat
+DriverVer=02/21/2016,13.51.52.191
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+; ================= Class section =====================
+
+[ClassInstall32]
+Addreg=SampleClassReg
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+RMZDrv.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTx86
+
+[Standard.NTx86]
+%RMZDrv.DeviceDesc%=RMZDrv_Device, Root\RMZDrv ; TODO: edit hw-id
+
+[RMZDrv_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+RMZDrv.sys
+
+;-------------- Service installation
+[RMZDrv_Device.NT.Services]
+AddService = RMZDrv,%SPSVCINST_ASSOCSERVICE%, RMZDrv_Service_Inst
+
+; -------------- RMZDrv driver install sections
+[RMZDrv_Service_Inst]
+DisplayName    = %RMZDrv.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\RMZDrv.sys
+LoadOrderGroup = Extended Base
+
+;
+;--- RMZDrv_Device Coinstaller installation ------
+;
+
+[DestinationDirs]
+RMZDrv_Device_CoInstaller_CopyFiles = 11
+
+[RMZDrv_Device.NT.CoInstallers]
+AddReg=RMZDrv_Device_CoInstaller_AddReg
+CopyFiles=RMZDrv_Device_CoInstaller_CopyFiles
+
+[RMZDrv_Device_CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller01011.dll,WdfCoInstaller"
+
+[RMZDrv_Device_CoInstaller_CopyFiles]
+WdfCoInstaller01011.dll
+
+[SourceDisksFiles]
+WdfCoInstaller01011.dll=1 ; make sure the number matches with SourceDisksNames
+
+[RMZDrv_Device.NT.Wdf]
+KmdfService =  RMZDrv, RMZDrv_wdfsect
+[RMZDrv_wdfsect]
+KmdfLibraryVersion = 1.11
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="" ; TODO: add ManufacturerName
+ClassName="Samples" ; TODO: edit ClassName
+DiskName = "RMZDrv Installation Disk"
+RMZDrv.DeviceDesc = "RMZDrv Device"
+RMZDrv.SVCDESC = "RMZDrv Service"
