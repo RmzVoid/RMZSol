@@ -15,7 +15,7 @@ build/
 bld/
 [Bb]in/
 [Oo]bj/
-# Win7Debug/
+Win7Debug/
 
 # Roslyn cache directories
 *.ide/
@@ -188,3 +188,4 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+/Win7Debug
