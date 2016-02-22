@@ -138,6 +138,8 @@ void NTAPI ClassifyFnConnect(
 	UINT64 flowContext,
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
+	NTSTATUS status;
+
 	UNREFERENCED_PARAMETER(inFixedValues);
 	UNREFERENCED_PARAMETER(inMetaValues);
 	UNREFERENCED_PARAMETER(layerData);
@@ -145,17 +147,28 @@ void NTAPI ClassifyFnConnect(
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(flowContext);
 
-	DbgPrint("I am in 'connect' callout\r\n");
+	DbgPrint("I am in 'CONNECT' callout\r\n");
 
 	DbgPrint("Flow context %d\r\n", flowContext);
 	DbgPrint("Raw context %d\r\n", filter->context);
-
-	if (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
-		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
-
 	DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
 
-	classifyOut->actionType = FWP_ACTION_CONTINUE;
+
+	if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+	{
+		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+
+		status = FwpsFlowAssociateContext(inMetaValues->flowHandle, FWPS_LAYER_STREAM_V4, CalloutStreamId, 101);
+
+		CheckStatus(status, "FwpsFlowAssociateContext");
+	}
+
+	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+	{
+		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+	}
+
+	classifyOut->actionType = FWP_ACTION_PERMIT;
 }
 
 void NTAPI ClassifyFnStream(
@@ -174,17 +187,17 @@ void NTAPI ClassifyFnStream(
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(flowContext);
 
-	DbgPrint("I am in callout\r\n");
+	DbgPrint("I am in 'STREAM' callout\r\n");
 
 	DbgPrint("Flow context %d\r\n", flowContext);
 	DbgPrint("Raw context %d\r\n", filter->context);
 
-	if (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+	if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
 		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
 
 	DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
 
-	classifyOut->actionType = FWP_ACTION_CONTINUE;
+	classifyOut->actionType = FWP_ACTION_PERMIT;
 }
 
 NTSTATUS NotifyFn(

@@ -63,7 +63,7 @@ int main()
 		calloutConnect.displayData.description = L"RMZControl connect callout description";
 		calloutConnect.calloutKey = rmzCalloutConnectGuid;
 		calloutConnect.providerKey = (GUID*)&rmzProviderGuid;
-		calloutConnect.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+		calloutConnect.applicableLayer = FWPM_LAYER_ALE_FLOW_ESTABLISHED_V4;
 
 		status = FwpmCalloutAdd(engine, &calloutConnect, NULL, &calloutConnect.calloutId);
 
@@ -85,25 +85,19 @@ int main()
 		//
 
 		// connect filter
-		const int numConditions = 2;
-		FWPM_FILTER_CONDITION conditionConnect[numConditions] = { { 0 }, { 0 } };
-		conditionConnect[0].fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+		FWPM_FILTER_CONDITION conditionConnect[1] = { { 0 } };
+		conditionConnect[0].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
 		conditionConnect[0].matchType = FWP_MATCH_EQUAL;
-		conditionConnect[0].conditionValue.type = FWP_UINT8;
-		conditionConnect[0].conditionValue.uint8 = IPPROTO_TCP;
-
-		conditionConnect[1].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
-		conditionConnect[1].matchType = FWP_MATCH_EQUAL;
-		conditionConnect[1].conditionValue.type = FWP_UINT16;
-		conditionConnect[1].conditionValue.uint16 = 7777;
+		conditionConnect[0].conditionValue.type = FWP_UINT16;
+		conditionConnect[0].conditionValue.uint16 = 7777;
 
 		filterConnect.displayData.name = L"RMZControl connection filter";
 		filterConnect.displayData.description = L"RMZControl connection filter description";
 		filterConnect.filterKey = rmzFilterConnectGuid;
-		filterConnect.numFilterConditions = numConditions;
+		filterConnect.numFilterConditions = 1;
 		filterConnect.filterCondition = conditionConnect;
 		filterConnect.providerKey = (GUID*)&rmzProviderGuid;
-		filterConnect.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+		filterConnect.layerKey = FWPM_LAYER_ALE_FLOW_ESTABLISHED_V4;
 		filterConnect.subLayerKey = rmzSublayerGuid;
 		filterConnect.weight.type = FWP_EMPTY;
 		filterConnect.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
