@@ -1,6 +1,7 @@
 #include <fwptypes.h>
 #include <fwpmu.h>
 #include <stdio.h>
+#include <conio.h>
 
 #include "..\RMZCommon\Common.h"
 
@@ -95,10 +96,15 @@ int main()
 
 		if (!CheckError(status, L"FwpmFilterAdd")) throw status;
 
+		//
+		// Pause console
+		//
+		wprintf(L"Press any key to exit");
+		while (!_kbhit()){}
 	}
 	catch (DWORD status)
 	{
-		wprintf(L"Catched exception %0xx\r\n", status);
+		wprintf(L"Catched exception 0x%X\r\n", status);
 	}
 
 	FwpmFilterDeleteByKey(engine, &rmzFilterGuid);
@@ -114,7 +120,7 @@ BOOL CheckError(DWORD status, LPCWSTR message)
 {
 	if (status != ERROR_SUCCESS)
 	{
-		wprintf(L"%s failed: %d\r\n", message, status);
+		wprintf(L"%s failed: 0x%X\r\n", message, status, GetLastError);
 		return FALSE;
 	}
 	else

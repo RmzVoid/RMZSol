@@ -5,7 +5,7 @@
 [Version]
 Signature="$WINDOWS NT$"
 Class=Sample ; TODO: edit Class
-ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171} ; TODO: edit ClassGuid
+ClassGuid={B5449E00-8A06-4FEA-AEE8-7D4DD55F1E34} ; TODO: edit ClassGuid
 Provider=%ManufacturerName%
 CatalogFile=RMZDrv.cat
 DriverVer= ; TODO: set DriverVer in stampinf property pages

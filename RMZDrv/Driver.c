@@ -6,7 +6,7 @@
 #endif
 
 // forward declarations
-void ClassifyFn(
+void NTAPI ClassifyFn(
 	const FWPS_INCOMING_VALUES0* inFixedValues,
 	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
 	void* layerData,
@@ -15,12 +15,12 @@ void ClassifyFn(
 	UINT64 flowContext,
 	FWPS_CLASSIFY_OUT0* classifyOut);
 
-NTSTATUS NotifyFn(
+NTSTATUS NTAPI NotifyFn(
 	FWPS_CALLOUT_NOTIFY_TYPE notifyType,
 	const GUID* filterKey,
 	FWPS_FILTER* filter);
 
-void FlowDeleteFn(
+void NTAPI FlowDeleteFn(
 	UINT16 layerId,
 	UINT32 calloutId,
 	UINT64 flowContext);
@@ -50,7 +50,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 	driverObject->DriverUnload = Unload;
 
 	/* Create i/o device */
-	status = IoCreateDevice(driverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
+	status = IoCreateDevice(driverObject, 0, NULL, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
 
 	if (!CheckStatus(status, "IoCreateDevice")) goto exit;
 
@@ -64,10 +64,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 
 	if (!CheckStatus(status, "FwpsCalloutRegister")) goto exit;
 
-
-
 exit:
-
     return status;
 
 	UNREFERENCED_PARAMETER(registryPath);
@@ -94,17 +91,17 @@ BOOL CheckStatus(NTSTATUS status, PCSTR message)
 {
 	if (!NT_SUCCESS(status))
 	{
-		DbgPrint("%s failed: %d", message, status);
+		DbgPrint( "%s failed: 0x%X\r\n", message, status);
 		return FALSE;
 	}
 	else
 	{
-		DbgPrint("%s success", message);
+		DbgPrint("%s success\r\n", message);
 		return TRUE;
 	}
 }
 
-void ClassifyFn(
+void NTAPI ClassifyFn(
 	const FWPS_INCOMING_VALUES0* inFixedValues,
 	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
 	void* layerData,
@@ -119,7 +116,10 @@ void ClassifyFn(
 	UNREFERENCED_PARAMETER(classifyContext);
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(flowContext);
-	UNREFERENCED_PARAMETER(classifyOut);
+
+	DbgPrint("I am in callout\r\n");
+
+	classifyOut->actionType = FWP_ACTION_CONTINUE;
 }
 
 NTSTATUS NotifyFn(
@@ -127,22 +127,23 @@ NTSTATUS NotifyFn(
 	const GUID* filterKey,
 	FWPS_FILTER* filter)
 {
+	UNREFERENCED_PARAMETER(filterKey);
+
 	switch (notifyType)
 	{
 	case FWPS_CALLOUT_NOTIFY_ADD_FILTER:
-		DbgPrint("Filter added %d", filter->filterId);
+		DbgPrint("Filter added %d\r\n", filter->filterId);
 		break;
 
 	case FWPS_CALLOUT_NOTIFY_DELETE_FILTER:
-		DbgPrint("Filter deleted %d", filter->filterId);
+		DbgPrint("Filter deleted %d\r\n", filter->filterId);
+		break;
 
 	default:
-		DbgPrint("Unknown notify type %d", notifyType);
+		DbgPrint("Unknown notify type %d\r\n", notifyType);
 	}
 
 	return STATUS_SUCCESS;
-
-	UNREFERENCED_PARAMETER(filterKey);
 }
 
 void FlowDeleteFn(
