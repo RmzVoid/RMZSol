@@ -1,12 +1,20 @@
 #include "driver.h"
-#include "driver.tmh"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
 #endif
 
 // forward declarations
-void NTAPI ClassifyFn(
+void NTAPI ClassifyFnConnect(
+	const FWPS_INCOMING_VALUES0* inFixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
+	void* layerData,
+	const void* classifyContext,
+	const FWPS_FILTER* filter,
+	UINT64 flowContext,
+	FWPS_CLASSIFY_OUT0* classifyOut);
+
+void NTAPI ClassifyFnStream(
 	const FWPS_INCOMING_VALUES0* inFixedValues,
 	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
 	void* layerData,
@@ -35,7 +43,8 @@ BOOL CheckStatus(
 //
 // Global variables
 //
-UINT32 CalloutId;
+UINT32 CalloutConnectId;
+UINT32 CalloutStreamId;
 PDEVICE_OBJECT DeviceObject = NULL;
 
 //
@@ -44,7 +53,8 @@ PDEVICE_OBJECT DeviceObject = NULL;
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING registryPath)
 {
     NTSTATUS status;
-	FWPS_CALLOUT calloutData = { 0 };
+	FWPS_CALLOUT calloutConnect = { 0 };
+	FWPS_CALLOUT calloutStream = { 0 };
 
 	/* Specify unload handler */
 	driverObject->DriverUnload = Unload;
@@ -54,15 +64,25 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 
 	if (!CheckStatus(status, "IoCreateDevice")) goto exit;
 
-	/* Register callout */
-	calloutData.calloutKey = rmzCalloutGuid;
-	calloutData.classifyFn = ClassifyFn;
-	calloutData.notifyFn = NotifyFn;
-	calloutData.flowDeleteFn = FlowDeleteFn;
+	/* Register connect callout */
+	calloutConnect.calloutKey = rmzCalloutConnectGuid;
+	calloutConnect.classifyFn = ClassifyFnConnect;
+	calloutConnect.notifyFn = NotifyFn;
 
-	status = FwpsCalloutRegister(DeviceObject, &calloutData, &CalloutId);
+	status = FwpsCalloutRegister(DeviceObject, &calloutConnect, &CalloutConnectId);
 
-	if (!CheckStatus(status, "FwpsCalloutRegister")) goto exit;
+	if (!CheckStatus(status, "FwpsCalloutRegister(calloutConnect)")) goto exit;
+
+	/* Register stream callout */
+	calloutStream.calloutKey = rmzCalloutStreamGuid;
+	calloutStream.classifyFn = ClassifyFnStream;
+	calloutStream.notifyFn = NotifyFn;
+	calloutStream.flowDeleteFn = FlowDeleteFn;
+	calloutStream.flags = FWP_CALLOUT_FLAG_CONDITIONAL_ON_FLOW;
+
+	status = FwpsCalloutRegister(DeviceObject, &calloutStream, &CalloutStreamId);
+
+	if (!CheckStatus(status, "FwpsCalloutRegister(calloutStream)")) goto exit;
 
 exit:
     return status;
@@ -74,13 +94,21 @@ void Unload(PDRIVER_OBJECT driverObject)
 {
 	NTSTATUS status;
 
-	status = FwpsCalloutUnregisterById(CalloutId);
+	status = FwpsCalloutUnregisterById(CalloutConnectId);
 
 	if (status == STATUS_DEVICE_BUSY)
 	{
 	}
 	else 
-		CheckStatus(status, "FwpsCalloutUnregisterById");
+		CheckStatus(status, "FwpsCalloutUnregisterById(CalloutConnectId)");
+
+	status = FwpsCalloutUnregisterById(CalloutStreamId);
+
+	if (status == STATUS_DEVICE_BUSY)
+	{
+	}
+	else
+		CheckStatus(status, "FwpsCalloutUnregisterById(CalloutStreamId)");
 
 	IoDeleteDevice(DeviceObject);
 
@@ -101,7 +129,36 @@ BOOL CheckStatus(NTSTATUS status, PCSTR message)
 	}
 }
 
-void NTAPI ClassifyFn(
+void NTAPI ClassifyFnConnect(
+	const FWPS_INCOMING_VALUES0* inFixedValues,
+	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
+	void* layerData,
+	const void* classifyContext,
+	const FWPS_FILTER* filter,
+	UINT64 flowContext,
+	FWPS_CLASSIFY_OUT0* classifyOut)
+{
+	UNREFERENCED_PARAMETER(inFixedValues);
+	UNREFERENCED_PARAMETER(inMetaValues);
+	UNREFERENCED_PARAMETER(layerData);
+	UNREFERENCED_PARAMETER(classifyContext);
+	UNREFERENCED_PARAMETER(filter);
+	UNREFERENCED_PARAMETER(flowContext);
+
+	DbgPrint("I am in 'connect' callout\r\n");
+
+	DbgPrint("Flow context %d\r\n", flowContext);
+	DbgPrint("Raw context %d\r\n", filter->context);
+
+	if (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+
+	DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
+
+	classifyOut->actionType = FWP_ACTION_CONTINUE;
+}
+
+void NTAPI ClassifyFnStream(
 	const FWPS_INCOMING_VALUES0* inFixedValues,
 	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
 	void* layerData,
@@ -118,6 +175,14 @@ void NTAPI ClassifyFn(
 	UNREFERENCED_PARAMETER(flowContext);
 
 	DbgPrint("I am in callout\r\n");
+
+	DbgPrint("Flow context %d\r\n", flowContext);
+	DbgPrint("Raw context %d\r\n", filter->context);
+
+	if (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+
+	DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
 
 	classifyOut->actionType = FWP_ACTION_CONTINUE;
 }

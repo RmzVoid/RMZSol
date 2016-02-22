@@ -13,8 +13,10 @@ int main()
 	FWPM_SESSION session = { 0 };
 	FWPM_PROVIDER provider = { 0 };
 	FWPM_SUBLAYER sublayer = { 0 };
-	FWPM_CALLOUT callout = { 0 };
-	FWPM_FILTER filter = { 0 };
+	FWPM_CALLOUT calloutConnect = { 0 };
+	FWPM_CALLOUT calloutStream = { 0 };
+	FWPM_FILTER filterConnect = { 0 };
+	FWPM_FILTER filterStream = { 0 };
 
 	try
 	{
@@ -53,62 +55,103 @@ int main()
 		if (!CheckError(status, L"FwpmSublayerAdd")) throw status;
 
 		//
-		// Add callout
+		// Add callouts
 		//
-		callout.displayData.name = L"RMZControl callout";
-		callout.displayData.description = L"RMZControl callout description";
-		callout.calloutKey = rmzCalloutGuid;
-		callout.providerKey = (GUID*)&rmzProviderGuid;
-		callout.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
 
-		status = FwpmCalloutAdd(engine, &callout, NULL, &callout.calloutId);
+		// connect callout
+		calloutConnect.displayData.name = L"RMZControl connect callout";
+		calloutConnect.displayData.description = L"RMZControl connect callout description";
+		calloutConnect.calloutKey = rmzCalloutConnectGuid;
+		calloutConnect.providerKey = (GUID*)&rmzProviderGuid;
+		calloutConnect.applicableLayer = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
 
-		if (!CheckError(status, L"FwpmCalloutAdd")) throw status;
+		status = FwpmCalloutAdd(engine, &calloutConnect, NULL, &calloutConnect.calloutId);
+
+		if (!CheckError(status, L"FwpmCalloutAdd(calloutConnect)")) throw status;
+
+		// stream callout
+		calloutStream.displayData.name = L"RMZControl stream callout";
+		calloutStream.displayData.description = L"RMZControl stream callout description";
+		calloutStream.calloutKey = rmzCalloutStreamGuid;
+		calloutStream.providerKey = (GUID*)&rmzProviderGuid;
+		calloutStream.applicableLayer = FWPM_LAYER_STREAM_V4;
+
+		status = FwpmCalloutAdd(engine, &calloutStream, NULL, &calloutStream.calloutId);
+
+		if (!CheckError(status, L"FwpmCalloutAdd(calloutStream)")) throw status;
 
 		//
 		// Add filter
 		//
+
+		// connect filter
 		const int numConditions = 2;
-		FWPM_FILTER_CONDITION condition[numConditions] = { { 0 }, { 0 } };
-		condition[0].fieldKey = FWPM_CONDITION_IP_PROTOCOL;
-		condition[0].matchType = FWP_MATCH_EQUAL;
-		condition[0].conditionValue.type = FWP_UINT8;
-		condition[0].conditionValue.uint8 = IPPROTO_TCP;
+		FWPM_FILTER_CONDITION conditionConnect[numConditions] = { { 0 }, { 0 } };
+		conditionConnect[0].fieldKey = FWPM_CONDITION_IP_PROTOCOL;
+		conditionConnect[0].matchType = FWP_MATCH_EQUAL;
+		conditionConnect[0].conditionValue.type = FWP_UINT8;
+		conditionConnect[0].conditionValue.uint8 = IPPROTO_TCP;
 
-		condition[1].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
-		condition[1].matchType = FWP_MATCH_EQUAL;
-		condition[1].conditionValue.type = FWP_UINT16;
-		condition[1].conditionValue.uint16 = 7777;
+		conditionConnect[1].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
+		conditionConnect[1].matchType = FWP_MATCH_EQUAL;
+		conditionConnect[1].conditionValue.type = FWP_UINT16;
+		conditionConnect[1].conditionValue.uint16 = 7777;
 
-		filter.displayData.name = L"RMZControl filter";
-		filter.displayData.description = L"RMZControl filter description";
-		filter.filterKey = rmzFilterGuid;
-		filter.numFilterConditions = numConditions;
-		filter.filterCondition = condition;
-		filter.providerKey = (GUID*)&rmzProviderGuid;
-		filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
-		filter.subLayerKey = rmzSublayerGuid;
-		filter.weight.type = FWP_EMPTY;
-		filter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-		filter.action.calloutKey = rmzCalloutGuid;
+		filterConnect.displayData.name = L"RMZControl connection filter";
+		filterConnect.displayData.description = L"RMZControl connection filter description";
+		filterConnect.filterKey = rmzFilterConnectGuid;
+		filterConnect.numFilterConditions = numConditions;
+		filterConnect.filterCondition = conditionConnect;
+		filterConnect.providerKey = (GUID*)&rmzProviderGuid;
+		filterConnect.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V4;
+		filterConnect.subLayerKey = rmzSublayerGuid;
+		filterConnect.weight.type = FWP_EMPTY;
+		filterConnect.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+		filterConnect.action.calloutKey = rmzCalloutConnectGuid;
+		filterConnect.rawContext = context;
 
-		status = FwpmFilterAdd(engine, &filter, NULL, &filter.filterId);
+		status = FwpmFilterAdd(engine, &filterConnect, NULL, &filterConnect.filterId);
 
-		if (!CheckError(status, L"FwpmFilterAdd")) throw status;
+		if (!CheckError(status, L"FwpmFilterAdd(filterConnect)")) throw status;
 
-		//
-		// Pause console
-		//
-		wprintf(L"Press any key to exit");
-		while (!_kbhit()){}
+		// stream filter
+		FWPM_FILTER_CONDITION conditionStream[1] = { { 0 } };
+		conditionStream[0].fieldKey = FWPM_CONDITION_IP_REMOTE_PORT;
+		conditionStream[0].matchType = FWP_MATCH_EQUAL;
+		conditionStream[0].conditionValue.type = FWP_UINT16;
+		conditionStream[0].conditionValue.uint16 = 7777;
+
+		filterStream.displayData.name = L"RMZControl stream filter";
+		filterStream.displayData.description = L"RMZControl stream filter description";
+		filterStream.filterKey = rmzFilterStreamGuid;
+		filterStream.numFilterConditions = 1;
+		filterStream.filterCondition = conditionStream;
+		filterStream.providerKey = (GUID*)&rmzProviderGuid;
+		filterStream.layerKey = FWPM_LAYER_STREAM_V4;
+		filterStream.subLayerKey = rmzSublayerGuid;
+		filterStream.weight.type = FWP_EMPTY;
+		filterStream.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+		filterStream.action.calloutKey = rmzCalloutStreamGuid;
+
+		status = FwpmFilterAdd(engine, &filterStream, NULL, &filterConnect.filterId);
+		
+		if (!CheckError(status, L"FwpmFilterAdd(filterStream)")) throw status;
 	}
 	catch (DWORD status)
 	{
 		wprintf(L"Catched exception 0x%X\r\n", status);
 	}
 
-	FwpmFilterDeleteByKey(engine, &rmzFilterGuid);
-	FwpmCalloutDeleteByKey(engine, &rmzCalloutGuid);
+	//
+	// Pause console
+	//
+	wprintf(L"Press any key to exit\r\n");
+	while (!_kbhit()){}
+
+	FwpmFilterDeleteByKey(engine, &rmzFilterStreamGuid);
+	FwpmFilterDeleteByKey(engine, &rmzFilterConnectGuid);
+	FwpmCalloutDeleteByKey(engine, &rmzCalloutStreamGuid);
+	FwpmCalloutDeleteByKey(engine, &rmzCalloutConnectGuid);
 	FwpmSubLayerDeleteByKey(engine, &rmzSublayerGuid);
 	FwpmProviderDeleteByKey(engine, &rmzProviderGuid);
 	FwpmEngineClose(engine);

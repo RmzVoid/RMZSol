@@ -51,17 +51,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
-    <ClCompile Include="Queue.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\RMZCommon\Common.h" />
-    <ClInclude Include="Device.h" />
     <ClInclude Include="Driver.h" />
-    <ClInclude Include="Public.h" />
-    <ClInclude Include="Queue.h" />
-    <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="RMZDrv.inf" />
@@ -306,9 +300,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <ClCompile>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData Condition="'%(ClCompile. ScanConfigurationData)'  == ''">trace.h</WppScanConfigurationData>
-      <WppKernelMode>true</WppKernelMode>
+      <WppScanConfigurationData Condition="'%(ClCompile. ScanConfigurationData)'  == ''">
+      </WppScanConfigurationData>
     </ClCompile>
     <Link>
       <AdditionalDependencies>Fwpkclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
