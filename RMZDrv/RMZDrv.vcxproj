@@ -51,11 +51,16 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Common.c" />
     <ClCompile Include="Driver.c" />
+    <ClCompile Include="FlowContext.c" />
+    <ClCompile Include="Util.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\RMZCommon\Common.h" />
     <ClInclude Include="Driver.h" />
+    <ClInclude Include="FlowContext.h" />
+    <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="RMZDrv.inf" />

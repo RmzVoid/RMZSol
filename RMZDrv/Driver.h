@@ -1,3 +1,5 @@
+#pragma once
+
 #define NDIS_SUPPORT_NDIS6 1
 
 #include <ntddk.h>
@@ -13,12 +15,6 @@
 #define INITGUID
 #include <guiddef.h>
 
-//#include "device.h"
 #include "..\RMZCommon\common.h"
 
-//
-// WDFDRIVER Events
-//
-
-DRIVER_INITIALIZE DriverEntry;
 

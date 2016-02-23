@@ -1,4 +1,8 @@
-#include "driver.h"
+#include "Driver.h"
+#include "Util.h"
+#include "FlowContext.h"
+
+NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING registryPath);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
@@ -94,18 +98,18 @@ void Unload(PDRIVER_OBJECT driverObject)
 {
 	NTSTATUS status;
 
+	// unregister connect callout
 	status = FwpsCalloutUnregisterById(CalloutConnectId);
+	CheckStatus(status, "FwpsCalloutUnregisterById(CalloutConnectId)");
 
-	if (status == STATUS_DEVICE_BUSY)
-	{
-	}
-	else 
-		CheckStatus(status, "FwpsCalloutUnregisterById(CalloutConnectId)");
-
+	// unregister stream callout
 	status = FwpsCalloutUnregisterById(CalloutStreamId);
 
 	if (status == STATUS_DEVICE_BUSY)
 	{
+		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts firsrt");
+		// removing associations force calling flowDeleteFn, there context data actually frees
+		rmzRemoveAllFlowContexts();
 	}
 	else
 		CheckStatus(status, "FwpsCalloutUnregisterById(CalloutStreamId)");
@@ -139,6 +143,7 @@ void NTAPI ClassifyFnConnect(
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
 	NTSTATUS status;
+	PRMZ_FLOW_CONTEXT flow;
 
 	UNREFERENCED_PARAMETER(inFixedValues);
 	UNREFERENCED_PARAMETER(inMetaValues);
@@ -158,9 +163,10 @@ void NTAPI ClassifyFnConnect(
 	{
 		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
 
-		status = FwpsFlowAssociateContext(inMetaValues->flowHandle, FWPS_LAYER_STREAM_V4, CalloutStreamId, 101);
-
+		flow = rmzAllocateFlowContext(inMetaValues->flowHandle, FWPS_LAYER_STREAM_V4, CalloutStreamId);
+		status = rmzAssociateFlowContext(flow);
 		CheckStatus(status, "FwpsFlowAssociateContext");
+		rmzPrintContext(flow);
 	}
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
@@ -180,24 +186,50 @@ void NTAPI ClassifyFnStream(
 	UINT64 flowContext,
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
-	UNREFERENCED_PARAMETER(inFixedValues);
-	UNREFERENCED_PARAMETER(inMetaValues);
-	UNREFERENCED_PARAMETER(layerData);
 	UNREFERENCED_PARAMETER(classifyContext);
-	UNREFERENCED_PARAMETER(filter);
-	UNREFERENCED_PARAMETER(flowContext);
 
 	DbgPrint("I am in 'STREAM' callout\r\n");
 
-	DbgPrint("Flow context %d\r\n", flowContext);
-	DbgPrint("Raw context %d\r\n", filter->context);
+	if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4)
+	{
+		DbgPrint("Stream v4 layer\r\n");
 
-	if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
-		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+		char str[1024] = "";
 
-	DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
+		DbgPrint("Direction: %s\r\n",
+			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_DIRECTION].value, str, 1024));
 
-	classifyOut->actionType = FWP_ACTION_PERMIT;
+		// здесь все верно щас
+		// отображается ipaddress:port (hu port) (type 2)
+		DbgPrint("Local addr: %s:%u (hu %hu) (type %u)\r\n",
+			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_ADDRESS].value, str, 1024),
+			inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.uint16,
+			inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.uint16,
+			inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.type);
+
+		// тут отображается ipaddress:ipaddress вместо ipaddres:port
+		DbgPrint("Remote addr: %s:%s\r\n",
+			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_ADDRESS].value, str, 1024),
+			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_PORT].value, str, 1024));
+
+		DbgPrint("Flow context %d\r\n", flowContext);
+		DbgPrint("Raw context %d\r\n", filter->context);
+
+		if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+			DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+
+		DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
+
+		if (layerData != NULL)
+		{
+			FWPS_STREAM_DATA* streamData = (FWPS_STREAM_DATA*)layerData;
+			DbgPrint("==== Stream data =====\r\ndataLenght: %u\r\nflags: 0x%X\r\n",
+				streamData->dataLength,
+				streamData->flags);
+		}
+
+		classifyOut->actionType = FWP_ACTION_PERMIT;
+	}
 }
 
 NTSTATUS NotifyFn(
@@ -229,7 +261,11 @@ void FlowDeleteFn(
 	UINT32 calloutId,
 	UINT64 flowContext)
 {
+	// TODO: this funtion can be called from different layers and callouts, so need to count layer and callout ids
 	UNREFERENCED_PARAMETER(layerId);
 	UNREFERENCED_PARAMETER(calloutId);
-	UNREFERENCED_PARAMETER(flowContext);
+
+	DbgPrint("FlowDeleteFn %d\r\n", flowContext);
+
+	rmzFreeFlowContext(flowContext);
 }
