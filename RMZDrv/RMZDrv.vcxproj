@@ -54,12 +54,14 @@
     <ClCompile Include="Common.c" />
     <ClCompile Include="Driver.c" />
     <ClCompile Include="FlowContext.c" />
+    <ClCompile Include="NetBuffer.c" />
     <ClCompile Include="Util.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\RMZCommon\Common.h" />
     <ClInclude Include="Driver.h" />
     <ClInclude Include="FlowContext.h" />
+    <ClInclude Include="NetBuffer.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>
@@ -309,7 +311,7 @@
       </WppScanConfigurationData>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Fwpkclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Fwpkclnt.lib;Ndis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">

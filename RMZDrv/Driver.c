@@ -1,6 +1,7 @@
 #include "Driver.h"
 #include "Util.h"
 #include "FlowContext.h"
+#include "NetBuffer.h"
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING registryPath);
 
@@ -107,7 +108,7 @@ void Unload(PDRIVER_OBJECT driverObject)
 
 	if (status == STATUS_DEVICE_BUSY)
 	{
-		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts firsrt");
+		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts firsrt\r\n");
 		// removing associations force calling flowDeleteFn, there context data actually frees
 		rmzRemoveAllFlowContexts();
 	}
@@ -145,28 +146,38 @@ void NTAPI ClassifyFnConnect(
 	NTSTATUS status;
 	PRMZ_FLOW_CONTEXT flow;
 
-	UNREFERENCED_PARAMETER(inFixedValues);
-	UNREFERENCED_PARAMETER(inMetaValues);
 	UNREFERENCED_PARAMETER(layerData);
 	UNREFERENCED_PARAMETER(classifyContext);
-	UNREFERENCED_PARAMETER(filter);
-	UNREFERENCED_PARAMETER(flowContext);
 
 	DbgPrint("I am in 'CONNECT' callout\r\n");
 
-	DbgPrint("Flow context %d\r\n", flowContext);
-	DbgPrint("Raw context %d\r\n", filter->context);
-	DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
-
-
-	if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+	if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
 	{
-		DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+		DbgPrint("Flow established v4 layer\r\n");
 
-		flow = rmzAllocateFlowContext(inMetaValues->flowHandle, FWPS_LAYER_STREAM_V4, CalloutStreamId);
-		status = rmzAssociateFlowContext(flow);
-		CheckStatus(status, "FwpsFlowAssociateContext");
-		rmzPrintContext(flow);
+		DbgPrint("Flow context %d\r\n", flowContext);
+		DbgPrint("Raw context %d\r\n", filter->context);
+		DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
+
+
+		if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
+		{
+			DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+
+			flow = rmzAllocateFlowContext(
+				inMetaValues->flowHandle,
+				FWPS_LAYER_STREAM_V4,
+				CalloutStreamId,
+				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_LOCAL_ADDRESS].value.uint32,
+				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_LOCAL_PORT].value.uint16,
+				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_REMOTE_ADDRESS].value.uint32,
+				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_REMOTE_PORT].value.uint16
+				);
+
+			status = rmzAssociateFlowContext(flow);
+			CheckStatus(status, "FwpsFlowAssociateContext");
+			rmzPrintContext(flow);
+		}
 	}
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
@@ -186,6 +197,9 @@ void NTAPI ClassifyFnStream(
 	UINT64 flowContext,
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
+	UNREFERENCED_PARAMETER(inMetaValues);
+	UNREFERENCED_PARAMETER(flowContext);
+	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(classifyContext);
 
 	DbgPrint("I am in 'STREAM' callout\r\n");
@@ -194,40 +208,21 @@ void NTAPI ClassifyFnStream(
 	{
 		DbgPrint("Stream v4 layer\r\n");
 
-		char str[1024] = "";
-
-		DbgPrint("Direction: %s\r\n",
-			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_DIRECTION].value, str, 1024));
-
-		// здесь все верно щас
-		// отображается ipaddress:port (hu port) (type 2)
-		DbgPrint("Local addr: %s:%u (hu %hu) (type %u)\r\n",
-			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_ADDRESS].value, str, 1024),
-			inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.uint16,
-			inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.uint16,
-			inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.type);
-
-		// тут отображается ipaddress:ipaddress вместо ipaddres:port
-		DbgPrint("Remote addr: %s:%s\r\n",
-			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_ADDRESS].value, str, 1024),
-			fwpValueToStr(&inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_PORT].value, str, 1024));
-
-		DbgPrint("Flow context %d\r\n", flowContext);
-		DbgPrint("Raw context %d\r\n", filter->context);
-
-		if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
-			DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
-
-		DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
-
 		if (layerData != NULL)
 		{
-			FWPS_STREAM_DATA* streamData = (FWPS_STREAM_DATA*)layerData;
-			DbgPrint("==== Stream data =====\r\ndataLenght: %u\r\nflags: 0x%X\r\n",
-				streamData->dataLength,
-				streamData->flags);
-		}
+			FWPS_STREAM_CALLOUT_IO_PACKET* packet = layerData;
+			DbgPrint("FWPS_STREAM_CALLOUT_IO_PACKET:\r\n");
+			DbgPrint("   countBytesEnforced: %u\r\n", packet->countBytesEnforced);
+			DbgPrint("   countBytesRequired: %u\r\n", packet->countBytesRequired);
+			DbgPrint("   countMissedBytes: %u\r\n", packet->missedBytes);
+			DbgPrint("   streamAction: %u\r\n", packet->streamAction);
+			DbgPrint("FWPS_STREAM_DATA:\r\n");
+			DbgPrint("   dataLength: %u\r\n", packet->streamData->dataLength);
+			DbgPrint("   flags: 0x%X\r\n", packet->streamData->flags);
 
+			rmzPrintNetBufferList(packet->streamData->netBufferListChain);
+		}
+		
 		classifyOut->actionType = FWP_ACTION_PERMIT;
 	}
 }

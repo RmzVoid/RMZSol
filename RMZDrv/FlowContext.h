@@ -17,11 +17,18 @@ typedef struct _RMZ_FLOW_CONTEXT
 	UINT64 flowId;
 	UINT16 layerId;
 	UINT32 calloutId;
+	UINT32 localAddress;
+	UINT32 remoteAddress;
+	UINT16 localPort;
+	UINT16 remotePort;
 } RMZ_FLOW_CONTEXT, *PRMZ_FLOW_CONTEXT;
 
 // called then need to create context
 PRMZ_FLOW_CONTEXT
-rmzAllocateFlowContext(UINT64 flowId, UINT16 layerId, UINT32 calloutId);
+rmzAllocateFlowContext(
+	UINT64 flowId, UINT16 layerId, UINT32 calloutId,
+	UINT32 localAddress, UINT16 localPort,
+	UINT32 remoteAddress, UINT16 remotePort);
 
 // called then flow should be freed (in flowDeleteFn)
 void

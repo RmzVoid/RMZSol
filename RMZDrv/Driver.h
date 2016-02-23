@@ -16,5 +16,3 @@
 #include <guiddef.h>
 
 #include "..\RMZCommon\common.h"
-
-
