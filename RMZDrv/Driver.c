@@ -108,12 +108,14 @@ void Unload(PDRIVER_OBJECT driverObject)
 
 	if (status == STATUS_DEVICE_BUSY)
 	{
-		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts firsrt\r\n");
+		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts first\r\n");
 		// removing associations force calling flowDeleteFn, there context data actually frees
 		rmzRemoveAllFlowContexts();
+		// try to unregister again
+		status = FwpsCalloutUnregisterById(CalloutStreamId);
 	}
-	else
-		CheckStatus(status, "FwpsCalloutUnregisterById(CalloutStreamId)");
+
+	CheckStatus(status, "FwpsCalloutUnregisterById(CalloutStreamId)");
 
 	IoDeleteDevice(DeviceObject);
 
@@ -202,24 +204,34 @@ void NTAPI ClassifyFnStream(
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(classifyContext);
 
+	FWPS_STREAM_CALLOUT_IO_PACKET* packet = layerData;
+	FWPS_STREAM_DATA* streamData = packet->streamData;
+
 	DbgPrint("I am in 'STREAM' callout\r\n");
 
 	if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4)
 	{
 		DbgPrint("Stream v4 layer\r\n");
+		DbgPrint("Direction: %s\r\n", streamData->flags & FWPS_STREAM_FLAG_RECEIVE ? "inbound" : streamData->flags & FWPS_STREAM_FLAG_SEND ? "outbound" : "unknown");
+		DbgPrint("Local address: ");
+		rmzPrintIpAddr(inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_ADDRESS].value.uint32);
+		DbgPrint(":%hu\r\n", inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.uint16);
+
+		DbgPrint("Remote address: ");
+		rmzPrintIpAddr(inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_ADDRESS].value.uint32);
+		DbgPrint(":%hu\r\n", inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_PORT].value.uint16);
 
 		if (layerData != NULL)
 		{
-			FWPS_STREAM_CALLOUT_IO_PACKET* packet = layerData;
 			DbgPrint("FWPS_STREAM_CALLOUT_IO_PACKET:\r\n");
 			DbgPrint("   countBytesEnforced: %u\r\n", packet->countBytesEnforced);
 			DbgPrint("   countBytesRequired: %u\r\n", packet->countBytesRequired);
 			DbgPrint("   countMissedBytes: %u\r\n", packet->missedBytes);
 			DbgPrint("   streamAction: %u\r\n", packet->streamAction);
 			DbgPrint("FWPS_STREAM_DATA:\r\n");
-			DbgPrint("   dataLength: %u\r\n", packet->streamData->dataLength);
-			DbgPrint("   flags: 0x%X\r\n", packet->streamData->flags);
-
+			DbgPrint("   dataLength: %u\r\n", streamData->dataLength);
+			DbgPrint("   flags: 0x%X\r\n", streamData->flags);
+			
 			rmzPrintNetBufferList(packet->streamData->netBufferListChain);
 		}
 		

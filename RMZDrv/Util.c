@@ -1,6 +1,6 @@
 #include "util.h"
 
-LPCSTR fwpValueToStr(_In_ FWP_VALUE* value, _In_ LPSTR string, _In_ DWORD lenght)
+LPCSTR rmzFwpValueToStr(_In_ FWP_VALUE* value, _In_ LPSTR string, _In_ DWORD lenght)
 {
 	switch (value->type)
 	{
@@ -117,4 +117,15 @@ LPCSTR fwpValueToStr(_In_ FWP_VALUE* value, _In_ LPSTR string, _In_ DWORD lenght
 	}
 
 	return string;
+}
+
+void rmzPrintIpAddr(UINT32 address)
+{
+	DbgPrint(
+		"%u.%u.%u.%u",
+		(address & 0xFF000000) >> 24,
+		(address & 0x00FF0000) >> 16,
+		(address & 0x0000FF00) >> 8,
+		(address & 0x000000FF)
+		);
 }
