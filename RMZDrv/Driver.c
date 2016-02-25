@@ -2,6 +2,7 @@
 #include "Util.h"
 #include "FlowContext.h"
 #include "NetBuffer.h"
+#include "Irp.h"
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING registryPath);
 
@@ -60,12 +61,20 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
     NTSTATUS status;
 	FWPS_CALLOUT calloutConnect = { 0 };
 	FWPS_CALLOUT calloutStream = { 0 };
-
+	
 	/* Specify unload handler */
 	driverObject->DriverUnload = Unload;
 
+	/* Dispatchers */
+	driverObject->MajorFunction[IRP_MJ_CREATE] = rmzDispatchCreate;
+	driverObject->MajorFunction[IRP_MJ_CLOSE] = rmzDispatchClose;
+	driverObject->MajorFunction[IRP_MJ_READ] = rmzDispatchRead;
+	driverObject->MajorFunction[IRP_MJ_WRITE] = rmzDispatchWrite;
+
 	/* Create i/o device */
 	status = IoCreateDevice(driverObject, 0, NULL, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+
+	DeviceObject->Flags |= DO_BUFFERED_IO;
 
 	if (!CheckStatus(status, "IoCreateDevice")) goto exit;
 

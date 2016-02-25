@@ -51,9 +51,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Common.c" />
     <ClCompile Include="Driver.c" />
     <ClCompile Include="FlowContext.c" />
+    <ClCompile Include="Irp.c" />
     <ClCompile Include="NetBuffer.c" />
     <ClCompile Include="Util.c" />
   </ItemGroup>
@@ -61,6 +61,7 @@
     <ClInclude Include="..\RMZCommon\Common.h" />
     <ClInclude Include="Driver.h" />
     <ClInclude Include="FlowContext.h" />
+    <ClInclude Include="Irp.h" />
     <ClInclude Include="NetBuffer.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>

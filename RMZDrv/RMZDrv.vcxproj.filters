@@ -39,6 +39,9 @@
     <ClInclude Include="FlowContext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Irp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Driver.c">
@@ -47,13 +50,13 @@
     <ClCompile Include="Util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Common.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="FlowContext.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="NetBuffer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Irp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
