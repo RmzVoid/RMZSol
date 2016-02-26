@@ -28,16 +28,16 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
-			this.textBox1 = new System.Windows.Forms.TextBox();
+			this.tbDeviceName = new System.Windows.Forms.TextBox();
 			this.btnRead = new System.Windows.Forms.Button();
 			this.SuspendLayout();
 			// 
-			// textBox1
+			// tbDeviceName
 			// 
-			this.textBox1.Location = new System.Drawing.Point(13, 56);
-			this.textBox1.Name = "textBox1";
-			this.textBox1.Size = new System.Drawing.Size(631, 20);
-			this.textBox1.TabIndex = 0;
+			this.tbDeviceName.Location = new System.Drawing.Point(13, 56);
+			this.tbDeviceName.Name = "tbDeviceName";
+			this.tbDeviceName.Size = new System.Drawing.Size(631, 20);
+			this.tbDeviceName.TabIndex = 0;
 			// 
 			// btnRead
 			// 
@@ -55,9 +55,10 @@
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(656, 437);
 			this.Controls.Add(this.btnRead);
-			this.Controls.Add(this.textBox1);
+			this.Controls.Add(this.tbDeviceName);
 			this.Name = "MainForm";
 			this.Text = "RmzGui";
+			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
 			this.ResumeLayout(false);
 			this.PerformLayout();
 
@@ -65,7 +66,7 @@
 
 		#endregion
 
-		private System.Windows.Forms.TextBox textBox1;
+		private System.Windows.Forms.TextBox tbDeviceName;
 		private System.Windows.Forms.Button btnRead;
 	}
 }

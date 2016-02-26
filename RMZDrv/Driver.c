@@ -52,6 +52,10 @@ BOOL CheckStatus(
 UINT32 CalloutConnectId;
 UINT32 CalloutStreamId;
 PDEVICE_OBJECT DeviceObject = NULL;
+LPCWSTR wstrDeviceName = L"\\Device\\rmzdrv";
+LPCWSTR wstrSymlinkName = L"\\??\\rmzdrv";
+UNICODE_STRING deviceName;
+UNICODE_STRING symlinkName;
 
 //
 // Entry point for dtiver
@@ -71,12 +75,21 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 	driverObject->MajorFunction[IRP_MJ_READ] = rmzDispatchRead;
 	driverObject->MajorFunction[IRP_MJ_WRITE] = rmzDispatchWrite;
 
+	/* Give a name for our device */
+	RtlUnicodeStringInit(&deviceName, wstrDeviceName);
+	RtlUnicodeStringInit(&symlinkName, wstrSymlinkName);
+
 	/* Create i/o device */
-	status = IoCreateDevice(driverObject, 0, NULL, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+	status = IoCreateDevice(driverObject, 0, &deviceName, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+
+	if (!CheckStatus(status, "IoCreateDevice")) goto exit;
 
 	DeviceObject->Flags |= DO_BUFFERED_IO;
 
-	if (!CheckStatus(status, "IoCreateDevice")) goto exit;
+	/* Create symbolic link, to allow open device as file from user space */
+	status = IoCreateSymbolicLink(&symlinkName, &deviceName);
+
+	CheckStatus(status, "IoCreateSymbolicLink");
 
 	/* Register connect callout */
 	calloutConnect.calloutKey = rmzCalloutConnectGuid;
@@ -125,6 +138,10 @@ void Unload(PDRIVER_OBJECT driverObject)
 	}
 
 	CheckStatus(status, "FwpsCalloutUnregisterById(CalloutStreamId)");
+
+	status = IoDeleteSymbolicLink(&symlinkName);
+
+	CheckStatus(status, "IoDeleteSymbolicLink");
 
 	IoDeleteDevice(DeviceObject);
 

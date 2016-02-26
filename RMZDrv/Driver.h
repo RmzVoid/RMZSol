@@ -4,6 +4,7 @@
 
 #include <ntddk.h>
 #include <wdf.h>
+#include <ntstrsafe.h>
 
 #pragma warning(push)
 #pragma warning(disable:4201)       // unnamed struct/union

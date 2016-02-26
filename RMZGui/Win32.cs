@@ -4,14 +4,15 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
 
 namespace RMZGui
 {
 	class Win32
 	{
-		[DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-		public static extern IntPtr CreateFile(
-			 [MarshalAs(UnmanagedType.LPTStr)] string fileName,
+		[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+		public static extern SafeFileHandle CreateFile(
+			 [MarshalAs(UnmanagedType.LPWStr)] string fileName,
 			 [MarshalAs(UnmanagedType.U4)] FileAccess desiredAccess,
 			 [MarshalAs(UnmanagedType.U4)] FileShare shareMode,
 			 IntPtr securityAttributes,
@@ -51,5 +52,9 @@ namespace RMZGui
 		{
 			Normal = 0x00000080
 		}
+
+		[DllImport("kernel32.dll", SetLastError = true)]
+		[return: MarshalAs(UnmanagedType.Bool)]
+		public static extern bool CloseHandle(IntPtr hObject);
 	}
 }
