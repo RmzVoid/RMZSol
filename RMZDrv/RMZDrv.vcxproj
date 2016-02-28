@@ -202,6 +202,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <CodeAnalysisRuleSet>..\..\..\..\Program Files (x86)\Windows Kits\8.1\CodeAnalysis\DriverRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>true</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -310,6 +312,7 @@
     <ClCompile>
       <WppScanConfigurationData Condition="'%(ClCompile. ScanConfigurationData)'  == ''">
       </WppScanConfigurationData>
+      <EnablePREfast>true</EnablePREfast>
     </ClCompile>
     <Link>
       <AdditionalDependencies>Fwpkclnt.lib;Ndis.lib;%(AdditionalDependencies)</AdditionalDependencies>

@@ -15,21 +15,26 @@ namespace RMZGui
 {
 	public partial class MainForm : Form
 	{
-		private FileStream readStream;
-		private SafeFileHandle deviceHandle;
+		// size of buffer for read and write
+		private const int bufferSize = 16384;
+
+		// stream for data exchange with device
+		private FileStream deviceStream = null;
+
+		// deice handle
+		private SafeFileHandle deviceHandle = null;
 
 		public MainForm()
 		{
 			InitializeComponent();
 
-			//
-			// Open device
-			//
 			try
 			{
+				//
+				// Open device
 				deviceHandle = Win32.CreateFile(@"\\.\rmzdrv",
-					Win32.FileAccess.GenericRead,
-					Win32.FileShare.Read,
+					Win32.FileAccess.GenericRead | Win32.FileAccess.GenericWrite,
+					Win32.FileShare.None,
 					IntPtr.Zero,
 					Win32.CreationDisposition.OpenExisting,
 					Win32.FileAttributes.Normal,
@@ -38,7 +43,12 @@ namespace RMZGui
 				if (deviceHandle.IsInvalid)
 					Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
 
-				readStream = new FileStream(deviceHandle, FileAccess.Read, 4096, false);
+				//
+				// Open stream for data flow
+				deviceStream = new FileStream(deviceHandle, FileAccess.ReadWrite, bufferSize, false);
+
+				if (deviceStream.CanRead) btnRead.Enabled = true;
+				if (deviceStream.CanWrite) btnWrite.Enabled = true;
 			}
 			catch (Exception exception)
 			{
@@ -48,26 +58,65 @@ namespace RMZGui
 
 		private void btnRead_Click(object sender, EventArgs e)
 		{
-			if(readStream.CanRead)
+			if(deviceStream.CanRead)
 			{
 				byte[] buffer = new byte[4096];
-				int bytesReaded = readStream.Read(buffer, 0, 4096);
+				int bytesReaded = deviceStream.Read(buffer, 0, 4096);
 
 				if(bytesReaded>0)
 				{
-					string readedString = Encoding.Unicode.GetString(buffer, 0, bytesReaded);
+					string readedString = Encoding.GetEncoding(1251).GetString(buffer);
+					//string readedString = Encoding.Unicode.GetString(buffer, 0, bytesReaded);
 
-					tbDeviceName.Text = readedString;
+					tbData.Text = readedString;
 				}
 				else
 				{
-					tbDeviceName.Text = "No data";
+					tbData.Text = "No data";
 				}
+			}
+		}
+
+		private void btnWrite_Click(object sender, EventArgs e)
+		{
+			if (tbData.Text.Length <= 0)
+				return;
+
+			if (deviceStream.CanWrite)
+			{
+				byte[] buffer = Encoding.Unicode.GetBytes(tbData.Text); ;
+
+				if (buffer.Length > 0)
+				{
+					try
+					{
+						deviceStream.Write(buffer, 0, buffer.Length);
+						deviceStream.Flush();
+					}
+					catch (Exception exception)
+					{
+						MessageBox.Show(exception.Message, exception.Source, MessageBoxButtons.OK, MessageBoxIcon.Error);
+					}
+				}
+				else
+				{
+					tbData.Text = "Buffer with zero length";
+				}
+			}
+			else
+			{
+				tbData.Text = "Device not writable";
 			}
 		}
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
+			// here I decide to CloseHandle of devceHandle
+			// but SafeFileHandle closes by self
+			// so here just empty space
+
+			if (deviceStream != null)
+				deviceStream.Close();
 		}
 	}
 }

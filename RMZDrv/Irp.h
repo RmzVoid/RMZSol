@@ -1,6 +1,7 @@
 #include <wdm.h>
+#include <ntstrsafe.h>
 
-DRIVER_DISPATCH rmzDispatchCreate;
-DRIVER_DISPATCH rmzDispatchClose;
-DRIVER_DISPATCH rmzDispatchRead;
-DRIVER_DISPATCH rmzDispatchWrite;
+_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH rmzDispatchCreate;
+_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH rmzDispatchClose;
+_Dispatch_type_(IRP_MJ_READ) DRIVER_DISPATCH rmzDispatchRead;
+_Dispatch_type_(IRP_MJ_WRITE) DRIVER_DISPATCH rmzDispatchWrite;

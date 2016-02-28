@@ -4,7 +4,8 @@
 #include "NetBuffer.h"
 #include "Irp.h"
 
-NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING registryPath);
+DRIVER_INITIALIZE DriverEntry;
+DRIVER_UNLOAD DriverUnload;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
@@ -54,8 +55,8 @@ UINT32 CalloutStreamId;
 PDEVICE_OBJECT DeviceObject = NULL;
 LPCWSTR wstrDeviceName = L"\\Device\\rmzdrv";
 LPCWSTR wstrSymlinkName = L"\\??\\rmzdrv";
-UNICODE_STRING deviceName;
-UNICODE_STRING symlinkName;
+UNICODE_STRING deviceName = { 0 };
+UNICODE_STRING symlinkName = { 0 };
 
 //
 // Entry point for dtiver
@@ -67,7 +68,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 	FWPS_CALLOUT calloutStream = { 0 };
 	
 	/* Specify unload handler */
-	driverObject->DriverUnload = Unload;
+	driverObject->DriverUnload = DriverUnload;
 
 	/* Dispatchers */
 	driverObject->MajorFunction[IRP_MJ_CREATE] = rmzDispatchCreate;
@@ -76,15 +77,18 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 	driverObject->MajorFunction[IRP_MJ_WRITE] = rmzDispatchWrite;
 
 	/* Give a name for our device */
-	RtlUnicodeStringInit(&deviceName, wstrDeviceName);
-	RtlUnicodeStringInit(&symlinkName, wstrSymlinkName);
+	RtlInitUnicodeString(&deviceName, wstrDeviceName);
+	RtlInitUnicodeString(&symlinkName, wstrSymlinkName);
 
 	/* Create i/o device */
 	status = IoCreateDevice(driverObject, 0, &deviceName, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
 
-	if (!CheckStatus(status, "IoCreateDevice")) goto exit;
+	if (!CheckStatus(status, "IoCreateDevice") || !DeviceObject) goto exit;
 
 	DeviceObject->Flags |= DO_BUFFERED_IO;
+
+	/* Init flows contexts */
+	rmzInitFlows();
 
 	/* Create symbolic link, to allow open device as file from user space */
 	status = IoCreateSymbolicLink(&symlinkName, &deviceName);
@@ -117,7 +121,7 @@ exit:
 	UNREFERENCED_PARAMETER(registryPath);
 }
 
-void Unload(PDRIVER_OBJECT driverObject)
+void DriverUnload(PDRIVER_OBJECT driverObject)
 {
 	NTSTATUS status;
 
@@ -183,14 +187,14 @@ void NTAPI ClassifyFnConnect(
 	{
 		DbgPrint("Flow established v4 layer\r\n");
 
-		DbgPrint("Flow context %d\r\n", flowContext);
-		DbgPrint("Raw context %d\r\n", filter->context);
-		DbgPrint("Values count %d\r\n", inFixedValues->valueCount);
+		DbgPrint("Flow context %llu\r\n", flowContext);
+		DbgPrint("Raw context %llu\r\n", filter->context);
+		DbgPrint("Values count %u\r\n", inFixedValues->valueCount);
 
 
 		if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
 		{
-			DbgPrint("Flow handle field present %d\r\n", inMetaValues->flowHandle);
+			DbgPrint("Flow handle field present %llu\r\n", inMetaValues->flowHandle);
 
 			flow = rmzAllocateFlowContext(
 				inMetaValues->flowHandle,
@@ -250,15 +254,30 @@ void NTAPI ClassifyFnStream(
 		if (layerData != NULL)
 		{
 			DbgPrint("FWPS_STREAM_CALLOUT_IO_PACKET:\r\n");
-			DbgPrint("   countBytesEnforced: %u\r\n", packet->countBytesEnforced);
+			DbgPrint("   countBytesEnforced: %lld\r\n", packet->countBytesEnforced);
 			DbgPrint("   countBytesRequired: %u\r\n", packet->countBytesRequired);
-			DbgPrint("   countMissedBytes: %u\r\n", packet->missedBytes);
+			DbgPrint("   countMissedBytes: %lld\r\n", packet->missedBytes);
 			DbgPrint("   streamAction: %u\r\n", packet->streamAction);
 			DbgPrint("FWPS_STREAM_DATA:\r\n");
-			DbgPrint("   dataLength: %u\r\n", streamData->dataLength);
+			DbgPrint("   dataLength: %lld\r\n", streamData->dataLength);
 			DbgPrint("   flags: 0x%X\r\n", streamData->flags);
-			
 			rmzPrintNetBufferList(packet->streamData->netBufferListChain);
+
+			if (streamData->dataLength > 0)
+			{
+				PRMZ_FLOW_CONTEXT context = rmzGetFlowContext(flowContext);
+				rmzLockDataBuffer(context);
+				PVOID buffer = rmzPrepareDataBuffer(context, streamData->dataLength);
+				SIZE_T bytesCopied = 0;
+				FwpsCopyStreamDataToBuffer(streamData, buffer, streamData->dataLength, &bytesCopied);
+				context->buffer.dataSize += streamData->dataLength;
+				rmzUnlockDataBuffer(context);
+
+				if (bytesCopied < streamData->dataLength)
+					DbgPrint("Copied bytes count %lld less then actual data length %lld\r\n", bytesCopied, streamData->dataLength);
+
+				rmzSignalBufferReady(context);
+			}
 		}
 		
 		classifyOut->actionType = FWP_ACTION_PERMIT;
@@ -275,11 +294,11 @@ NTSTATUS NotifyFn(
 	switch (notifyType)
 	{
 	case FWPS_CALLOUT_NOTIFY_ADD_FILTER:
-		DbgPrint("Filter added %d\r\n", filter->filterId);
+		DbgPrint("Filter added %llu\r\n", filter->filterId);
 		break;
 
 	case FWPS_CALLOUT_NOTIFY_DELETE_FILTER:
-		DbgPrint("Filter deleted %d\r\n", filter->filterId);
+		DbgPrint("Filter deleted %llu\r\n", filter->filterId);
 		break;
 
 	default:
@@ -298,7 +317,7 @@ void FlowDeleteFn(
 	UNREFERENCED_PARAMETER(layerId);
 	UNREFERENCED_PARAMETER(calloutId);
 
-	DbgPrint("FlowDeleteFn %d\r\n", flowContext);
+	DbgPrint("FlowDeleteFn %llu\r\n", flowContext);
 
 	rmzFreeFlowContext(flowContext);
 }
