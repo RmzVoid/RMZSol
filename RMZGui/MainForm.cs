@@ -61,14 +61,17 @@ namespace RMZGui
 			if(deviceStream.CanRead)
 			{
 				byte[] buffer = new byte[4096];
+
 				int bytesReaded = deviceStream.Read(buffer, 0, 4096);
 
 				if(bytesReaded>0)
 				{
-					string readedString = Encoding.GetEncoding(1251).GetString(buffer);
+					ulong value = buffer[0];
+
+					//string readedString = Encoding.GetEncoding(1251).GetString(buffer);
 					//string readedString = Encoding.Unicode.GetString(buffer, 0, bytesReaded);
 
-					tbData.Text = readedString;
+					tbData.Text = value.ToString();//readedString;
 				}
 				else
 				{

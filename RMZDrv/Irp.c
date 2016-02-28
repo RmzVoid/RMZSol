@@ -1,5 +1,5 @@
 #include "Irp.h"
-#include "FlowContext.h"
+#include "ConnectionContext.h"
 
 _Use_decl_annotations_
 NTSTATUS rmzDispatchCreate(PDEVICE_OBJECT deviceObject, PIRP irp)
@@ -27,30 +27,37 @@ _Use_decl_annotations_
 NTSTATUS rmzDispatchRead(PDEVICE_OBJECT deviceObject, PIRP irp)
 {
 	UNREFERENCED_PARAMETER(deviceObject);
-	DbgPrint("******Requiest read********\r\n");
 
 	NTSTATUS status = STATUS_SUCCESS;
-	SIZE_T bytesRemain = 0;
-	SIZE_T bytesMoved = 0;
+
 	PIO_STACK_LOCATION stackLocation = IoGetCurrentIrpStackLocation(irp);
 
-	PRMZ_FLOW_CONTEXT context = rmzWaitForBufferReady();
+	//
+	// in read dispatcher here we have size buffer proded by user app
+	ULONG bufferSize = stackLocation->Parameters.Read.Length;
 
-	if (context)
+	//
+	// here we place data which will be readed by user app
+	PVOID buffer = irp->AssociatedIrp.SystemBuffer;
+
+	SIZE_T bytesMoved = 0;
+
+	if (stackLocation && buffer && bufferSize > 0)
 	{
-		// in read dispatcher here we have size buffer proded by user app
-		ULONG bufferSize = stackLocation->Parameters.Read.Length;
-		// here we place data which will be readed by user app
-		PVOID buffer = irp->AssociatedIrp.SystemBuffer;
-
 		if (stackLocation && buffer && bufferSize > 0)
 		{
-			rmzLockDataBuffer(context);
-			bytesRemain = rmzMoveBufferData(context, buffer, bufferSize, &bytesMoved);
-			rmzUnlockDataBuffer(context);
+			if (RmzWaitOnQueue())
+			{
+				PPACKET packet = RmzPopPacket();
 
-			if (bytesRemain > 0)
-				rmzSignalBufferReady(context);
+				while (packet)
+				{
+					*(PUINT64)buffer = packet->serial;
+					bytesMoved = sizeof(UINT64);
+					RmzFreePacket(packet);
+					packet = RmzPopPacket();
+				}
+			}
 		}
 	}
 

@@ -1,8 +1,8 @@
 #include "Driver.h"
 #include "Util.h"
-#include "FlowContext.h"
 #include "NetBuffer.h"
 #include "Irp.h"
+#include "ConnectionContext.h"
 
 DRIVER_INITIALIZE DriverEntry;
 DRIVER_UNLOAD DriverUnload;
@@ -42,10 +42,6 @@ void NTAPI FlowDeleteFn(
 
 void Unload(
 	PDRIVER_OBJECT driverObject);
-
-BOOL CheckStatus(
-	NTSTATUS status,
-	PCSTR message);
 
 //
 // Global variables
@@ -87,8 +83,8 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 
 	DeviceObject->Flags |= DO_BUFFERED_IO;
 
-	/* Init flows contexts */
-	rmzInitFlows();
+	/* Init connection context */
+	RmzInitQueue();
 
 	/* Create symbolic link, to allow open device as file from user space */
 	status = IoCreateSymbolicLink(&symlinkName, &deviceName);
@@ -136,7 +132,7 @@ void DriverUnload(PDRIVER_OBJECT driverObject)
 	{
 		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts first\r\n");
 		// removing associations force calling flowDeleteFn, there context data actually frees
-		rmzRemoveAllFlowContexts();
+		// rmzRemoveAllFlowContexts();
 		// try to unregister again
 		status = FwpsCalloutUnregisterById(CalloutStreamId);
 	}
@@ -152,20 +148,6 @@ void DriverUnload(PDRIVER_OBJECT driverObject)
 	UNREFERENCED_PARAMETER(driverObject);
 }
 
-BOOL CheckStatus(NTSTATUS status, PCSTR message)
-{
-	if (!NT_SUCCESS(status))
-	{
-		DbgPrint( "%s failed: 0x%X\r\n", message, status);
-		return FALSE;
-	}
-	else
-	{
-		DbgPrint("%s success\r\n", message);
-		return TRUE;
-	}
-}
-
 void NTAPI ClassifyFnConnect(
 	const FWPS_INCOMING_VALUES0* inFixedValues,
 	const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
@@ -176,40 +158,15 @@ void NTAPI ClassifyFnConnect(
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
 	NTSTATUS status;
-	PRMZ_FLOW_CONTEXT flow;
 
 	UNREFERENCED_PARAMETER(layerData);
 	UNREFERENCED_PARAMETER(classifyContext);
-
-	DbgPrint("I am in 'CONNECT' callout\r\n");
+	UNREFERENCED_PARAMETER(flowContext);
 
 	if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
 	{
-		DbgPrint("Flow established v4 layer\r\n");
-
-		DbgPrint("Flow context %llu\r\n", flowContext);
-		DbgPrint("Raw context %llu\r\n", filter->context);
-		DbgPrint("Values count %u\r\n", inFixedValues->valueCount);
-
-
-		if (FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))
-		{
-			DbgPrint("Flow handle field present %llu\r\n", inMetaValues->flowHandle);
-
-			flow = rmzAllocateFlowContext(
-				inMetaValues->flowHandle,
-				FWPS_LAYER_STREAM_V4,
-				CalloutStreamId,
-				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_LOCAL_ADDRESS].value.uint32,
-				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_LOCAL_PORT].value.uint16,
-				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_REMOTE_ADDRESS].value.uint32,
-				inFixedValues->incomingValue[FWPS_FIELD_ALE_FLOW_ESTABLISHED_V4_IP_REMOTE_PORT].value.uint16
-				);
-
-			status = rmzAssociateFlowContext(flow);
-			CheckStatus(status, "FwpsFlowAssociateContext");
-			rmzPrintContext(flow);
-		}
+		status = FwpsFlowAssociateContext(inMetaValues->flowHandle, FWPS_LAYER_STREAM_V4, CalloutStreamId, inMetaValues->flowHandle);
+		CheckStatus(status, "FwpsFlowAssociateContext");
 	}
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
@@ -230,57 +187,23 @@ void NTAPI ClassifyFnStream(
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
 	UNREFERENCED_PARAMETER(inMetaValues);
-	UNREFERENCED_PARAMETER(flowContext);
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(classifyContext);
+
+	classifyOut->actionType = FWP_ACTION_BLOCK;
+
+	if (layerData == NULL)
+		return;
 
 	FWPS_STREAM_CALLOUT_IO_PACKET* packet = layerData;
 	FWPS_STREAM_DATA* streamData = packet->streamData;
 
-	DbgPrint("I am in 'STREAM' callout\r\n");
-
 	if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4)
 	{
-		DbgPrint("Stream v4 layer\r\n");
-		DbgPrint("Direction: %s\r\n", streamData->flags & FWPS_STREAM_FLAG_RECEIVE ? "inbound" : streamData->flags & FWPS_STREAM_FLAG_SEND ? "outbound" : "unknown");
-		DbgPrint("Local address: ");
-		rmzPrintIpAddr(inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_ADDRESS].value.uint32);
-		DbgPrint(":%hu\r\n", inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_LOCAL_PORT].value.uint16);
+		if (streamData->flags & FWPS_STREAM_FLAG_RECEIVE_DISCONNECT || streamData->flags & FWPS_STREAM_FLAG_SEND_DISCONNECT)
+			classifyOut->actionType = FWP_ACTION_PERMIT;
 
-		DbgPrint("Remote address: ");
-		rmzPrintIpAddr(inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_ADDRESS].value.uint32);
-		DbgPrint(":%hu\r\n", inFixedValues->incomingValue[FWPS_FIELD_STREAM_V4_IP_REMOTE_PORT].value.uint16);
-
-		if (layerData != NULL)
-		{
-			DbgPrint("FWPS_STREAM_CALLOUT_IO_PACKET:\r\n");
-			DbgPrint("   countBytesEnforced: %lld\r\n", packet->countBytesEnforced);
-			DbgPrint("   countBytesRequired: %u\r\n", packet->countBytesRequired);
-			DbgPrint("   countMissedBytes: %lld\r\n", packet->missedBytes);
-			DbgPrint("   streamAction: %u\r\n", packet->streamAction);
-			DbgPrint("FWPS_STREAM_DATA:\r\n");
-			DbgPrint("   dataLength: %lld\r\n", streamData->dataLength);
-			DbgPrint("   flags: 0x%X\r\n", streamData->flags);
-			rmzPrintNetBufferList(packet->streamData->netBufferListChain);
-
-			if (streamData->dataLength > 0)
-			{
-				PRMZ_FLOW_CONTEXT context = rmzGetFlowContext(flowContext);
-				rmzLockDataBuffer(context);
-				PVOID buffer = rmzPrepareDataBuffer(context, streamData->dataLength);
-				SIZE_T bytesCopied = 0;
-				FwpsCopyStreamDataToBuffer(streamData, buffer, streamData->dataLength, &bytesCopied);
-				context->buffer.dataSize += streamData->dataLength;
-				rmzUnlockDataBuffer(context);
-
-				if (bytesCopied < streamData->dataLength)
-					DbgPrint("Copied bytes count %lld less then actual data length %lld\r\n", bytesCopied, streamData->dataLength);
-
-				rmzSignalBufferReady(context);
-			}
-		}
-		
-		classifyOut->actionType = FWP_ACTION_PERMIT;
+		RmzQueuePacket(flowContext, streamData);
 	}
 }
 
@@ -319,5 +242,5 @@ void FlowDeleteFn(
 
 	DbgPrint("FlowDeleteFn %llu\r\n", flowContext);
 
-	rmzFreeFlowContext(flowContext);
+	//rmzFreeFlowContext(flowContext);
 }

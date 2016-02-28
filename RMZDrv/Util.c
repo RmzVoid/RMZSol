@@ -129,3 +129,17 @@ void rmzPrintIpAddr(UINT32 address)
 		(address & 0x000000FF)
 		);
 }
+
+BOOL CheckStatus(NTSTATUS status, PCSTR message)
+{
+	if (!NT_SUCCESS(status))
+	{
+		DbgPrint("%s failed: 0x%X\r\n", message, status);
+		return FALSE;
+	}
+	else
+	{
+		DbgPrint("%s success\r\n", message);
+		return TRUE;
+	}
+}
