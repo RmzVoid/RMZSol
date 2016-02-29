@@ -86,6 +86,9 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 	/* Init connection context */
 	RmzInitQueue();
 
+	/* Init flows list */
+	RmzInitFlowList();
+
 	/* Create symbolic link, to allow open device as file from user space */
 	status = IoCreateSymbolicLink(&symlinkName, &deviceName);
 
@@ -121,19 +124,24 @@ void DriverUnload(PDRIVER_OBJECT driverObject)
 {
 	NTSTATUS status;
 
-	// unregister connect callout
+	//
+	// Unregister connect callout
 	status = FwpsCalloutUnregisterById(CalloutConnectId);
 	CheckStatus(status, "FwpsCalloutUnregisterById(CalloutConnectId)");
 
-	// unregister stream callout
+	//
+	// Unregister stream callout
 	status = FwpsCalloutUnregisterById(CalloutStreamId);
 
 	if (status == STATUS_DEVICE_BUSY)
 	{
-		DbgPrint("STATUS_DEVICE_BUSY, removing all contexts first\r\n");
-		// removing associations force calling flowDeleteFn, there context data actually frees
-		// rmzRemoveAllFlowContexts();
-		// try to unregister again
+		//
+		// Deassociate flows and free memory
+		// TODO: remove deadlock here
+		RmzFreeFlowList();
+
+		//
+		// Try to unregister callout again
 		status = FwpsCalloutUnregisterById(CalloutStreamId);
 	}
 
@@ -157,22 +165,15 @@ void NTAPI ClassifyFnConnect(
 	UINT64 flowContext,
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
-	NTSTATUS status;
-
 	UNREFERENCED_PARAMETER(layerData);
 	UNREFERENCED_PARAMETER(classifyContext);
 	UNREFERENCED_PARAMETER(flowContext);
 
 	if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
-	{
-		status = FwpsFlowAssociateContext(inMetaValues->flowHandle, FWPS_LAYER_STREAM_V4, CalloutStreamId, inMetaValues->flowHandle);
-		CheckStatus(status, "FwpsFlowAssociateContext");
-	}
+		RmzAssociateFlow(inMetaValues->flowHandle, CalloutStreamId);
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
-	{
 		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-	}
 
 	classifyOut->actionType = FWP_ACTION_PERMIT;
 }
@@ -240,7 +241,7 @@ void FlowDeleteFn(
 	UNREFERENCED_PARAMETER(layerId);
 	UNREFERENCED_PARAMETER(calloutId);
 
-	DbgPrint("FlowDeleteFn %llu\r\n", flowContext);
+	RmzDeassociateFlow((PFLOW)flowContext);
 
-	//rmzFreeFlowContext(flowContext);
+	DbgPrint("FlowDeleteFn %llu\r\n", flowContext);
 }

@@ -44,19 +44,16 @@ NTSTATUS rmzDispatchRead(PDEVICE_OBJECT deviceObject, PIRP irp)
 
 	if (stackLocation && buffer && bufferSize > 0)
 	{
-		if (stackLocation && buffer && bufferSize > 0)
+		if (RmzWaitOnQueue())
 		{
-			if (RmzWaitOnQueue())
-			{
-				PPACKET packet = RmzPopPacket();
+			PPACKET packet = RmzPopPacket();
 
-				while (packet)
-				{
-					*(PUINT64)buffer = packet->serial;
-					bytesMoved = sizeof(UINT64);
-					RmzFreePacket(packet);
-					packet = RmzPopPacket();
-				}
+			while (packet)
+			{
+				*(PUINT64)buffer = packet->serial;
+				bytesMoved = sizeof(UINT64);
+				RmzFreePacket(packet);
+				packet = RmzPopPacket();
 			}
 		}
 	}
