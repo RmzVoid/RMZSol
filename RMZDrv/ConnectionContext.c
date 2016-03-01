@@ -26,41 +26,48 @@ void RmzInitQueue()
 //
 // Adds streamData to queue
 //
-void RmzQueuePacket(UINT64 flowId, FWPS_STREAM_DATA* stream)
+void RmzQueuePacket(UINT64 flowId, SOURCE source, FWPS_STREAM_DATA* stream)
 {
 	//
 	// copy stream data to new NBL
 	NET_BUFFER_LIST* nbl = NULL;
-	FwpsCloneStreamData0(stream, NULL, NULL, 0, &nbl);
+	if (stream)
+		FwpsCloneStreamData0(stream, NULL, NULL, 0, &nbl);
 
 	//
 	// allocate memory
 	PPACKET packet = ExAllocatePoolWithTag(NonPagedPool, sizeof(PACKET), tag);
 	if (!packet) return;
 
-	packet->stream = ExAllocatePoolWithTag(NonPagedPool, sizeof(FWPS_STREAM_DATA), tag);
-	if (!packet->stream)
+	if (stream)
 	{
-		ExFreePoolWithTag(packet, tag);
-		return;
+		packet->stream = ExAllocatePoolWithTag(NonPagedPool, sizeof(FWPS_STREAM_DATA), tag);
+		if (!packet->stream)
+		{
+			ExFreePoolWithTag(packet, tag);
+			return;
+		}
+
+		FWPS_STREAM_DATA* ns = packet->stream;
+
+		ns->dataLength = stream->dataLength;
+		ns->netBufferListChain = nbl;
+		ns->dataOffset.netBuffer = nbl->FirstNetBuffer;
+		ns->dataOffset.mdl = NET_BUFFER_CURRENT_MDL(nbl->FirstNetBuffer);
+		ns->dataOffset.mdlOffset = NET_BUFFER_CURRENT_MDL_OFFSET(nbl->FirstNetBuffer);
+		ns->dataOffset.netBufferList = nbl;
+		ns->dataOffset.netBufferOffset = nbl->FirstNetBuffer->DataOffset;
+		ns->dataOffset.streamDataOffset = stream->dataOffset.streamDataOffset;
+		ns->flags = stream->flags;
 	}
+	else
+		packet->stream = NULL;
 
 	//
 	// fill structure
-	FWPS_STREAM_DATA* ns = packet->stream;
-
 	packet->flowId = flowId;
 	packet->serial = InterlockedIncrement64(&serial);
-
-	ns->dataLength = stream->dataLength;
-	ns->netBufferListChain = nbl;
-	ns->dataOffset.netBuffer = nbl->FirstNetBuffer;
-	ns->dataOffset.mdl = NET_BUFFER_CURRENT_MDL(nbl->FirstNetBuffer);
-	ns->dataOffset.mdlOffset = NET_BUFFER_CURRENT_MDL_OFFSET(nbl->FirstNetBuffer);
-	ns->dataOffset.netBufferList = nbl;
-	ns->dataOffset.netBufferOffset = nbl->FirstNetBuffer->DataOffset;
-	ns->dataOffset.streamDataOffset = stream->dataOffset.streamDataOffset;
-	ns->flags = stream->flags;
+	packet->source = source;
 
 	//
 	// insert initialized packet to queue
@@ -73,6 +80,8 @@ void RmzQueuePacket(UINT64 flowId, FWPS_STREAM_DATA* stream)
 
 void RmzFreePacket(PPACKET packet)
 {
+	//
+	// assume here we never have NULL
 	FwpsFreeCloneNetBufferList(packet->stream->netBufferListChain, 0);
 	ExFreePoolWithTag(packet->stream, tag);
 	ExFreePoolWithTag(packet, tag);
@@ -88,41 +97,29 @@ void RmzNotifyQueueNotEmpty()
 	KeSetEvent(&gQueue.event, IO_NO_INCREMENT, FALSE);
 }
 
+BOOL RmzWaitOnQueue()
+{
+	return STATUS_WAIT_0 == KeWaitForSingleObject(&gQueue.event, Executive, KernelMode, FALSE, NULL);
+}
+
+void RmzFreeQueue()
+{
+	PPACKET packet = RmzPopPacket();
+
+	while (packet)
+	{
+		RmzFreePacket(packet);
+		packet = RmzPopPacket();
+	}
+}
+
 void RmzInitFlowList()
 {
 	KeInitializeSpinLock(&gFlowList.lock);
 	InitializeListHead(&gFlowList.flows);
 }
 
-void RmzFreeFlowList()
-{
-	//
-	// remove entry from list
-	KLOCK_QUEUE_HANDLE queueHandle;
-	KeAcquireInStackQueuedSpinLock(&gFlowList.lock, &queueHandle);
-
-	PLIST_ENTRY head = &gFlowList.flows;
-
-	while (!IsListEmpty(head))
-	{
-		PFLOW flow = (PFLOW)RemoveHeadList(head);
-
-		// deassociate flow
-		FwpsFlowRemoveContext(flow->flowId, FWPS_LAYER_STREAM_V4, flow->calloutId);
-
-		// free memory
-		ExFreePoolWithTag(flow, tag);
-	}
-
-	KeReleaseInStackQueuedSpinLock(&queueHandle);
-}
-
-BOOL RmzWaitOnQueue()
-{
-	return STATUS_WAIT_0 == KeWaitForSingleObject(&gQueue.event, Executive, KernelMode, FALSE, NULL);
-}
-
-PFLOW RmzAssociateFlow(UINT64 flowId, UINT32 calloutId)
+PFLOW RmzAddFlow(UINT64 flowId, UINT32 calloutId)
 {
 	PFLOW flow = (PFLOW)ExAllocatePoolWithTag(NonPagedPool, sizeof(FLOW), tag);
 
@@ -150,18 +147,41 @@ PFLOW RmzAssociateFlow(UINT64 flowId, UINT32 calloutId)
 	return flow;
 }
 
-void RmzDeassociateFlow(PFLOW flow)
+void RmzRemoveFlow(PFLOW flow)
 {
 	//
-	// remove entry from list
+	// remove entry
 	KLOCK_QUEUE_HANDLE queueHandle;
 	KeAcquireInStackQueuedSpinLock(&gFlowList.lock, &queueHandle);
 	RemoveEntryList((PLIST_ENTRY)flow);
 	KeReleaseInStackQueuedSpinLock(&queueHandle);
 
-	// deassciate flow
-	FwpsFlowRemoveContext(flow->flowId, FWPS_LAYER_STREAM_V4, flow->calloutId);
-
+	//
 	// free memory
 	ExFreePoolWithTag(flow, tag);
+}
+
+void RmzDeassociateFlowList()
+{
+	//
+	// lock list
+	KLOCK_QUEUE_HANDLE queueHandle;
+	KeAcquireInStackQueuedSpinLock(&gFlowList.lock, &queueHandle);
+
+	PLIST_ENTRY head = &gFlowList.flows;
+	PLIST_ENTRY entry = head->Flink;
+
+	//
+	// while not end of list reached
+	// list reached then forward link points
+	// to list's head
+	while (entry->Flink != head)
+	{
+		PFLOW flow = CONTAINING_RECORD(entry, FLOW, list);
+		FwpsFlowRemoveContext(flow->flowId, FWPS_LAYER_STREAM_V4, flow->calloutId);
+
+		entry = entry->Flink;
+	}
+
+	KeReleaseInStackQueuedSpinLock(&queueHandle);
 }

@@ -136,9 +136,10 @@ void DriverUnload(PDRIVER_OBJECT driverObject)
 	if (status == STATUS_DEVICE_BUSY)
 	{
 		//
-		// Deassociate flows and free memory
-		// TODO: remove deadlock here
-		RmzFreeFlowList();
+		// Here we must only deassociate flows
+		// all memory deallocation should be done
+		// in FlowDeleteFn
+		RmzDeassociateFlowList();
 
 		//
 		// Try to unregister callout again
@@ -147,10 +148,17 @@ void DriverUnload(PDRIVER_OBJECT driverObject)
 
 	CheckStatus(status, "FwpsCalloutUnregisterById(CalloutStreamId)");
 
+	//
+	// Delete symbolic link to driver
 	status = IoDeleteSymbolicLink(&symlinkName);
-
 	CheckStatus(status, "IoDeleteSymbolicLink");
 
+	//
+	// Remove remaining packets from queue
+	RmzFreeQueue();
+
+	//
+	// Delete device
 	IoDeleteDevice(DeviceObject);
 
 	UNREFERENCED_PARAMETER(driverObject);
@@ -170,7 +178,10 @@ void NTAPI ClassifyFnConnect(
 	UNREFERENCED_PARAMETER(flowContext);
 
 	if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
-		RmzAssociateFlow(inMetaValues->flowHandle, CalloutStreamId);
+	{
+		RmzAddFlow(inMetaValues->flowHandle, CalloutStreamId);
+		RmzQueuePacket(inMetaValues, NEWCONNECTION, NULL);
+	}
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
 		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
@@ -241,7 +252,7 @@ void FlowDeleteFn(
 	UNREFERENCED_PARAMETER(layerId);
 	UNREFERENCED_PARAMETER(calloutId);
 
-	RmzDeassociateFlow((PFLOW)flowContext);
+	RmzRemoveFlow((PFLOW)flowContext);
 
 	DbgPrint("FlowDeleteFn %llu\r\n", flowContext);
 }

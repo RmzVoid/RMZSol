@@ -50,7 +50,8 @@ namespace RMZGui
 		[Flags]
 		public enum FileAttributes : uint
 		{
-			Normal = 0x00000080
+			Normal = 0x00000080,
+			Overlapped = 0x40000000
 		}
 
 		[DllImport("kernel32.dll", SetLastError = true)]

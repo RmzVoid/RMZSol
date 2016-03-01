@@ -22,11 +22,19 @@ typedef struct _FLOW_LIST
 	KSPIN_LOCK lock;
 } FLOW_LIST, *PFLOW_LIST;
 
+typedef enum _SOURCE
+{
+	NEWCONNECTION,
+	FROMSERVER,
+	FROMCLIENT
+} SOURCE;
+
 typedef struct _PACKET
 {
 	LIST_ENTRY list;
 	UINT64 flowId;
 	UINT64 serial;
+	SOURCE source;
 	FWPS_STREAM_DATA* stream;
 } PACKET, *PPACKET;
 
@@ -41,11 +49,19 @@ void RmzInitQueue();
 void RmzQueuePacket(UINT64 flowId, FWPS_STREAM_DATA* stream);
 void RmzFreePacket(PPACKET packet);
 PPACKET RmzPopPacket();
+void RmzFreeQueue();
 
 BOOL RmzWaitOnQueue();
 void RmzNotifyQueueNotEmpty();
 
+// Initializes global variable for flows list
 void RmzInitFlowList();
-void RmzFreeFlowList();
-PFLOW RmzAssociateFlow(UINT64 flowId, UINT32 calloutId);
-void RmzDeassociateFlow(PFLOW flow);
+
+// Only deassociate all flows
+void RmzDeassociateFlowList();
+
+// Associate and add flow to list
+PFLOW RmzAddFlow(UINT64 flowId, UINT32 calloutId);
+
+// Remove flow from list and free allocated memory
+void RmzRemoveFlow(PFLOW flow);

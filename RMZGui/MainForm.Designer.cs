@@ -28,17 +28,11 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
-			this.tbData = new System.Windows.Forms.TextBox();
 			this.btnRead = new System.Windows.Forms.Button();
 			this.btnWrite = new System.Windows.Forms.Button();
+			this.lbFromClient = new System.Windows.Forms.ListBox();
+			this.bgwRead = new System.ComponentModel.BackgroundWorker();
 			this.SuspendLayout();
-			// 
-			// tbData
-			// 
-			this.tbData.Location = new System.Drawing.Point(13, 56);
-			this.tbData.Name = "tbData";
-			this.tbData.Size = new System.Drawing.Size(631, 20);
-			this.tbData.TabIndex = 0;
 			// 
 			// btnRead
 			// 
@@ -53,7 +47,6 @@
 			// 
 			// btnWrite
 			// 
-			this.btnWrite.Enabled = false;
 			this.btnWrite.Location = new System.Drawing.Point(94, 27);
 			this.btnWrite.Name = "btnWrite";
 			this.btnWrite.Size = new System.Drawing.Size(75, 23);
@@ -62,27 +55,35 @@
 			this.btnWrite.UseVisualStyleBackColor = true;
 			this.btnWrite.Click += new System.EventHandler(this.btnWrite_Click);
 			// 
+			// lbFromClient
+			// 
+			this.lbFromClient.FormattingEnabled = true;
+			this.lbFromClient.Location = new System.Drawing.Point(13, 57);
+			this.lbFromClient.Name = "lbFromClient";
+			this.lbFromClient.Size = new System.Drawing.Size(316, 368);
+			this.lbFromClient.TabIndex = 3;
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(656, 437);
+			this.Controls.Add(this.lbFromClient);
 			this.Controls.Add(this.btnWrite);
 			this.Controls.Add(this.btnRead);
-			this.Controls.Add(this.tbData);
 			this.Name = "MainForm";
 			this.Text = "RmzGui";
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
 			this.ResumeLayout(false);
-			this.PerformLayout();
 
 		}
 
 		#endregion
 
-		private System.Windows.Forms.TextBox tbData;
 		private System.Windows.Forms.Button btnRead;
 		private System.Windows.Forms.Button btnWrite;
+		private System.Windows.Forms.ListBox lbFromClient;
+		private System.ComponentModel.BackgroundWorker bgwRead;
 	}
 }
 
