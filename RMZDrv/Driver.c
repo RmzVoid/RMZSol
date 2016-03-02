@@ -139,7 +139,7 @@ void DriverUnload(PDRIVER_OBJECT driverObject)
 		// Here we must only deassociate flows
 		// all memory deallocation should be done
 		// in FlowDeleteFn
-		RmzDeassociateFlowList();
+		RmzDeassociateFlows();
 
 		//
 		// Try to unregister callout again
@@ -180,7 +180,7 @@ void NTAPI ClassifyFnConnect(
 	if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
 	{
 		RmzAddFlow(inMetaValues->flowHandle, CalloutStreamId);
-		RmzQueuePacket(inMetaValues, NEWCONNECTION, NULL);
+		RmzQueuePacket(inMetaValues->flowHandle, NEWCONNECTION, NULL);
 	}
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
@@ -215,7 +215,17 @@ void NTAPI ClassifyFnStream(
 		if (streamData->flags & FWPS_STREAM_FLAG_RECEIVE_DISCONNECT || streamData->flags & FWPS_STREAM_FLAG_SEND_DISCONNECT)
 			classifyOut->actionType = FWP_ACTION_PERMIT;
 
-		RmzQueuePacket(flowContext, streamData);
+		SOURCE source = FROMSERVER;
+
+		switch (streamData->flags)
+		{
+		case FWPS_STREAM_FLAG_SEND:
+		case FWPS_STREAM_FLAG_RECEIVE_ABORT:
+		case FWPS_STREAM_FLAG_RECEIVE_DISCONNECT:
+			source = FROMCLIENT;
+		}
+
+		RmzQueuePacket(flowContext,  source, streamData);
 	}
 }
 

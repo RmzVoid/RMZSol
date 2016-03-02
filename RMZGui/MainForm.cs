@@ -25,7 +25,7 @@ namespace RMZGui
 
 			try
 			{
-				device = new DeviceIO(@"\\.\rmzdrv", cancel.Token);
+				device = new DeviceIO(@"\\.\rmzdrv", cancel.Token, lbPacketLog);
 			}
 			catch (Exception exception)
 			{
@@ -39,11 +39,13 @@ namespace RMZGui
 
 		private void btnWrite_Click(object sender, EventArgs e)
 		{
-			cancel.Cancel();
+			device.Write(new byte[] { 30, 31, 32, 33 }, 0, 4);
 		}
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
+			cancel.Cancel();
+			cancel.Dispose();
 		}
 	}
 }

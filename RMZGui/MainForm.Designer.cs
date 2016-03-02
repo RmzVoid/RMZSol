@@ -30,8 +30,7 @@
 		{
 			this.btnRead = new System.Windows.Forms.Button();
 			this.btnWrite = new System.Windows.Forms.Button();
-			this.lbFromClient = new System.Windows.Forms.ListBox();
-			this.bgwRead = new System.ComponentModel.BackgroundWorker();
+			this.lbPacketLog = new System.Windows.Forms.ListBox();
 			this.SuspendLayout();
 			// 
 			// btnRead
@@ -55,20 +54,22 @@
 			this.btnWrite.UseVisualStyleBackColor = true;
 			this.btnWrite.Click += new System.EventHandler(this.btnWrite_Click);
 			// 
-			// lbFromClient
+			// lbPacketLog
 			// 
-			this.lbFromClient.FormattingEnabled = true;
-			this.lbFromClient.Location = new System.Drawing.Point(13, 57);
-			this.lbFromClient.Name = "lbFromClient";
-			this.lbFromClient.Size = new System.Drawing.Size(316, 368);
-			this.lbFromClient.TabIndex = 3;
+			this.lbPacketLog.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+			this.lbPacketLog.FormattingEnabled = true;
+			this.lbPacketLog.ItemHeight = 15;
+			this.lbPacketLog.Location = new System.Drawing.Point(13, 57);
+			this.lbPacketLog.Name = "lbPacketLog";
+			this.lbPacketLog.Size = new System.Drawing.Size(316, 364);
+			this.lbPacketLog.TabIndex = 3;
 			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(656, 437);
-			this.Controls.Add(this.lbFromClient);
+			this.Controls.Add(this.lbPacketLog);
 			this.Controls.Add(this.btnWrite);
 			this.Controls.Add(this.btnRead);
 			this.Name = "MainForm";
@@ -82,8 +83,7 @@
 
 		private System.Windows.Forms.Button btnRead;
 		private System.Windows.Forms.Button btnWrite;
-		private System.Windows.Forms.ListBox lbFromClient;
-		private System.ComponentModel.BackgroundWorker bgwRead;
+		private System.Windows.Forms.ListBox lbPacketLog;
 	}
 }
 

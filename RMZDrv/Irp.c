@@ -48,12 +48,17 @@ NTSTATUS rmzDispatchRead(PDEVICE_OBJECT deviceObject, PIRP irp)
 		{
 			PPACKET packet = RmzPopPacket();
 
-			while (packet)
+			if (packet)
 			{
-				*(PUINT64)buffer = packet->serial;
-				bytesMoved = sizeof(UINT64);
+				RtlCopyMemory(buffer, &packet->flowId, sizeof(UINT64) + sizeof(UINT64) + sizeof(SOURCE));
+				bytesMoved = sizeof(UINT64) + sizeof(UINT64) + sizeof(SOURCE);
 				RmzFreePacket(packet);
-				packet = RmzPopPacket();
+
+				// now, each read request consume only one packet
+				// in future need to put all packets which
+				// fits to buffer at once
+				if (!RmzIsQueueEmpty())
+					RmzNotifyQueueNotEmpty();
 			}
 		}
 	}

@@ -46,11 +46,11 @@ typedef struct _PACKET_QUEUE
 } PACKET_QUEUE, *PPACKET_QUEUE;
 
 void RmzInitQueue();
-void RmzQueuePacket(UINT64 flowId, FWPS_STREAM_DATA* stream);
+void RmzQueuePacket(UINT64 flowId, SOURCE source, FWPS_STREAM_DATA* stream);
 void RmzFreePacket(PPACKET packet);
 PPACKET RmzPopPacket();
 void RmzFreeQueue();
-
+BOOL RmzIsQueueEmpty();
 BOOL RmzWaitOnQueue();
 void RmzNotifyQueueNotEmpty();
 
@@ -58,7 +58,7 @@ void RmzNotifyQueueNotEmpty();
 void RmzInitFlowList();
 
 // Only deassociate all flows
-void RmzDeassociateFlowList();
+void RmzDeassociateFlows();
 
 // Associate and add flow to list
 PFLOW RmzAddFlow(UINT64 flowId, UINT32 calloutId);

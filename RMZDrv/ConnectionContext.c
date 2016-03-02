@@ -81,9 +81,13 @@ void RmzQueuePacket(UINT64 flowId, SOURCE source, FWPS_STREAM_DATA* stream)
 void RmzFreePacket(PPACKET packet)
 {
 	//
-	// assume here we never have NULL
-	FwpsFreeCloneNetBufferList(packet->stream->netBufferListChain, 0);
-	ExFreePoolWithTag(packet->stream, tag);
+	// assume packet never equal NULL
+	if (packet->stream)
+	{
+		FwpsFreeCloneNetBufferList(packet->stream->netBufferListChain, 0);
+		ExFreePoolWithTag(packet->stream, tag);
+	}
+
 	ExFreePoolWithTag(packet, tag);
 }
 
@@ -99,7 +103,17 @@ void RmzNotifyQueueNotEmpty()
 
 BOOL RmzWaitOnQueue()
 {
-	return STATUS_WAIT_0 == KeWaitForSingleObject(&gQueue.event, Executive, KernelMode, FALSE, NULL);
+	//
+	// here we wait then packet arrive
+	// just this happen we clear event
+	NTSTATUS status = KeWaitForSingleObject(&gQueue.event, Executive, KernelMode, FALSE, NULL);
+	KeClearEvent(&gQueue.event);
+	return STATUS_WAIT_0 == status;
+}
+
+BOOL RmzIsQueueEmpty()
+{
+	return gQueue.packets.Flink == &gQueue.packets;
 }
 
 void RmzFreeQueue()
@@ -161,7 +175,7 @@ void RmzRemoveFlow(PFLOW flow)
 	ExFreePoolWithTag(flow, tag);
 }
 
-void RmzDeassociateFlowList()
+void RmzDeassociateFlows()
 {
 	//
 	// lock list

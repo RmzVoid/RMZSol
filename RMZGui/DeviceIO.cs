@@ -12,10 +12,11 @@ using Microsoft.Win32.SafeHandles;
 namespace RMZGui
 {
 	// Reads data from driver
-	public class DeviceIO
+	public class DeviceIO// : IDisposable
 	{
 		// size of buffer for read and write
 		private const int bufferSize = 16384;
+		private byte[] buffer = new byte[bufferSize];
 
 		// stream for data exchange with device
 		private FileStream deviceStream = null;
@@ -23,37 +24,57 @@ namespace RMZGui
 		// token for cancelling
 		private CancellationToken cancelToken;
 
-		Thread readingThread = new Thread(DoRead);
+		// temporary
+		private ListBox lbPacketLog;
 
-		public DeviceIO(string devicePath, CancellationToken cancel)
+		public DeviceIO(string devicePath, CancellationToken cancel, ListBox listBox)
 		{
 			//
 			// Open device
-			//SafeFileHandle deviceHandle = Win32.CreateFile(devicePath,
-			//	Win32.FileAccess.GenericRead | Win32.FileAccess.GenericWrite,
-			//	Win32.FileShare.None,
-			//	IntPtr.Zero,
-			//	Win32.CreationDisposition.OpenExisting,
-			//	Win32.FileAttributes.Normal | Win32.FileAttributes.Overlapped,
-			//	IntPtr.Zero);
+			SafeFileHandle deviceHandle = Win32.CreateFile(devicePath,
+				Win32.FileAccess.GenericRead | Win32.FileAccess.GenericWrite,
+				Win32.FileShare.None,
+				IntPtr.Zero,
+				Win32.CreationDisposition.OpenExisting,
+				Win32.FileAttributes.Normal | Win32.FileAttributes.Overlapped,
+				IntPtr.Zero);
 
-			//if (deviceHandle.IsInvalid)
-			//	Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+			if (deviceHandle.IsInvalid)
+				Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
 
-			////
-			//// Open stream for data flow
-			//deviceStream = new FileStream(deviceHandle, FileAccess.ReadWrite, bufferSize, true);
+			//
+			// Open stream for data flow
+			deviceStream = new FileStream(deviceHandle, FileAccess.ReadWrite, bufferSize, true);
 
 			cancelToken = cancel;
+			lbPacketLog = listBox;
 
-			readingThread.Start(this);
+			// Start read
+			Task.Run(new Action(Read));
 		}
 
-		private static void DoRead(object obj)
+		private void Read()
 		{
-			DeviceIO device = obj as DeviceIO;
-			device.cancelToken.WaitHandle.WaitOne();
-			MessageBox.Show("1");
+			while (!cancelToken.IsCancellationRequested)
+			{
+				//
+				// need to know how to interrupt on demand this fucking Read
+				// Close, Dispose not helped, interrupting Task not recommended
+				int bytesReaded = deviceStream.Read(buffer, 0, bufferSize);
+
+				lbPacketLog.Items.Add(Util.ToHex(buffer, 0, bytesReaded));
+			}
+		}
+
+		public void Write(byte[] buffer, int offset, int count)
+		{
+			deviceStream.Write(buffer, offset, count);
+			deviceStream.Flush();
+		}
+
+		public void Close()
+		{
+			deviceStream.Close();
 		}
 	}
 }
