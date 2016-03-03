@@ -62,7 +62,10 @@ namespace RMZGui
 				// Close, Dispose not helped, interrupting Task not recommended
 				int bytesReaded = deviceStream.Read(buffer, 0, bufferSize);
 
-				lbPacketLog.Items.Add(Util.ToHex(buffer, 0, bytesReaded));
+				if (bytesReaded > 0)
+				{
+					lbPacketLog.Items.Add(Util.ToHex(buffer, 0, bytesReaded));
+				}
 			}
 		}
 
@@ -70,11 +73,6 @@ namespace RMZGui
 		{
 			deviceStream.Write(buffer, offset, count);
 			deviceStream.Flush();
-		}
-
-		public void Close()
-		{
-			deviceStream.Close();
 		}
 	}
 }

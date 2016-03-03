@@ -4,6 +4,7 @@
 ULONG tag = 'CCtg';
 PACKET_QUEUE gQueue;
 LONG64 serial;
+LARGE_INTEGER waitQueueTimeout;
 
 //
 // This list must have ability to
@@ -21,6 +22,7 @@ void RmzInitQueue()
 	KeInitializeSpinLock(&gQueue.lock);
 	KeInitializeEvent(&gQueue.event, NotificationEvent, FALSE);
 	InitializeListHead(&gQueue.packets);
+	waitQueueTimeout.QuadPart = -200 * 1000 * 10;
 }
 
 //
@@ -106,7 +108,9 @@ BOOL RmzWaitOnQueue()
 	//
 	// here we wait then packet arrive
 	// just this happen we clear event
-	NTSTATUS status = KeWaitForSingleObject(&gQueue.event, Executive, KernelMode, FALSE, NULL);
+	// while I dont understand how IRP works
+	// I set timeout to not block dispatcher forever
+	NTSTATUS status = KeWaitForSingleObject(&gQueue.event, Executive, KernelMode, FALSE, &waitQueueTimeout);
 	KeClearEvent(&gQueue.event);
 	return STATUS_WAIT_0 == status;
 }
