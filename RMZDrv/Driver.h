@@ -17,3 +17,7 @@
 #include <guiddef.h>
 
 #include "..\RMZCommon\common.h"
+
+extern HANDLE InjectionHandle;
+extern UINT32 CalloutStreamId;
+extern NDIS_HANDLE NBLPoolHandle;

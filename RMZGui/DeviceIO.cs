@@ -12,22 +12,26 @@ using Microsoft.Win32.SafeHandles;
 namespace RMZGui
 {
 	// Reads data from driver
-	public class DeviceIO// : IDisposable
+	public class DeviceIO
 	{
+		//
 		// size of buffer for read and write
 		private const int bufferSize = 16384;
 		private byte[] buffer = new byte[bufferSize];
 
+		//
 		// stream for data exchange with device
 		private FileStream deviceStream = null;
 
+		//
 		// token for cancelling
 		private CancellationToken cancelToken;
 
-		// temporary
-		private ListBox lbPacketLog;
+		//
+		// dispatch incoming packets
+		private PacketDispatcher dispatcher;
 
-		public DeviceIO(string devicePath, CancellationToken cancel, ListBox listBox)
+		public DeviceIO(string devicePath, CancellationToken cancel, PacketDispatcher dispatcher)
 		{
 			//
 			// Open device
@@ -47,7 +51,7 @@ namespace RMZGui
 			deviceStream = new FileStream(deviceHandle, FileAccess.ReadWrite, bufferSize, true);
 
 			cancelToken = cancel;
-			lbPacketLog = listBox;
+			this.dispatcher = dispatcher;
 
 			// Start read
 			Task.Run(new Action(Read));
@@ -64,15 +68,37 @@ namespace RMZGui
 
 				if (bytesReaded > 0)
 				{
-					lbPacketLog.Items.Add(Util.ToHex(buffer, 0, bytesReaded));
+					BinaryReader br = new BinaryReader(new MemoryStream(buffer, 0, bytesReaded));
+
+					Packet packet = new Packet()
+					{
+						flowId = br.ReadUInt64(),
+						direction = (Source)br.ReadUInt32(),
+						length = br.ReadInt32()
+					};
+
+					packet.data = br.ReadBytes(packet.length);
+
+					dispatcher.DispatchPacket(this, packet);
 				}
 			}
 		}
 
-		public void Write(byte[] buffer, int offset, int count)
+		public void Write(Packet packet)
 		{
-			deviceStream.Write(buffer, offset, count);
-			deviceStream.Flush();
+			using (MemoryStream ms = new MemoryStream())
+			{
+				using (BinaryWriter bw = new BinaryWriter(ms))
+				{
+					bw.Write(packet.flowId);
+					bw.Write((uint)packet.direction);
+					bw.Write(packet.length);
+					bw.Write(packet.data);
+
+					deviceStream.Write(ms.ToArray(), 0, (int)ms.Length);
+					deviceStream.Flush();
+				}
+			}
 		}
 	}
 }

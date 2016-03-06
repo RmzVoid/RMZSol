@@ -22,7 +22,7 @@ void RmzInitQueue()
 	KeInitializeSpinLock(&gQueue.lock);
 	KeInitializeEvent(&gQueue.event, NotificationEvent, FALSE);
 	InitializeListHead(&gQueue.packets);
-	waitQueueTimeout.QuadPart = -200 * 1000 * 10;
+	waitQueueTimeout.QuadPart = -1000 * 1000 * 10;	// 1 second
 }
 
 //
@@ -31,44 +31,50 @@ void RmzInitQueue()
 void RmzQueuePacket(UINT64 flowId, SOURCE source, FWPS_STREAM_DATA* stream)
 {
 	//
-	// copy stream data to new NBL
-	NET_BUFFER_LIST* nbl = NULL;
-	if (stream)
-		FwpsCloneStreamData0(stream, NULL, NULL, 0, &nbl);
-
-	//
-	// allocate memory
+	// allocate memory for packet structure
 	PPACKET packet = ExAllocatePoolWithTag(NonPagedPool, sizeof(PACKET), tag);
-	if (!packet) return;
+
+	if (!packet)
+		return;
 
 	if (stream)
 	{
-		packet->stream = ExAllocatePoolWithTag(NonPagedPool, sizeof(FWPS_STREAM_DATA), tag);
-		if (!packet->stream)
+		//
+		// allocated memory for packet data buffer
+		packet->data = ExAllocatePoolWithTag(NonPagedPool, sizeof(stream->dataLength), tag);
+
+		if (!packet->data)
 		{
 			ExFreePoolWithTag(packet, tag);
 			return;
 		}
 
-		FWPS_STREAM_DATA* ns = packet->stream;
+		PVOID data = packet->data;
+		//
+		// copy stream data to our packet's buffer
+		FwpsCopyStreamDataToBuffer(stream, data, stream->dataLength, (PSIZE_T)&packet->dataSize);
 
-		ns->dataLength = stream->dataLength;
-		ns->netBufferListChain = nbl;
-		ns->dataOffset.netBuffer = nbl->FirstNetBuffer;
-		ns->dataOffset.mdl = NET_BUFFER_CURRENT_MDL(nbl->FirstNetBuffer);
-		ns->dataOffset.mdlOffset = NET_BUFFER_CURRENT_MDL_OFFSET(nbl->FirstNetBuffer);
-		ns->dataOffset.netBufferList = nbl;
-		ns->dataOffset.netBufferOffset = nbl->FirstNetBuffer->DataOffset;
-		ns->dataOffset.streamDataOffset = stream->dataOffset.streamDataOffset;
-		ns->flags = stream->flags;
+		packet->data = data;
+
+		//
+		// check if not all copied
+		if (packet->dataSize != stream->dataLength)
+		{
+			DbgPrint("Bytes count(%u) copied from stream not equal to data length(%llu)", packet->dataSize, stream->dataLength);
+			ExFreePoolWithTag(packet->data, tag);
+			ExFreePoolWithTag(packet, tag);
+			return;
+		}
 	}
 	else
-		packet->stream = NULL;
+	{
+		packet->data = NULL;
+		packet->dataSize = 0;
+	}
 
 	//
 	// fill structure
 	packet->flowId = flowId;
-	packet->serial = InterlockedIncrement64(&serial);
 	packet->source = source;
 
 	//
@@ -84,10 +90,9 @@ void RmzFreePacket(PPACKET packet)
 {
 	//
 	// assume packet never equal NULL
-	if (packet->stream)
+	if (packet->data)
 	{
-		FwpsFreeCloneNetBufferList(packet->stream->netBufferListChain, 0);
-		ExFreePoolWithTag(packet->stream, tag);
+		ExFreePoolWithTag(packet->data, tag);
 	}
 
 	ExFreePoolWithTag(packet, tag);
@@ -161,6 +166,8 @@ PFLOW RmzAddFlow(UINT64 flowId, UINT32 calloutId)
 	KeAcquireInStackQueuedSpinLock(&gFlowList.lock, &queueHandle);
 	InsertTailList(&gFlowList.flows, &flow->list);
 	KeReleaseInStackQueuedSpinLock(&queueHandle);
+
+	DbgPrint("Added flow: %llu\r\n", flow->flowId);
 
 	return flow;
 }

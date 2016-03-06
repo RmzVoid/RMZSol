@@ -18,6 +18,7 @@ namespace RMZGui
 	{
 		private DeviceIO device;
 		private CancellationTokenSource cancel = new CancellationTokenSource();
+		private PacketDispatcher dispatcher;
 
 		public MainForm()
 		{
@@ -25,8 +26,8 @@ namespace RMZGui
 
 			try
 			{
-				device = new DeviceIO(@"\\.\rmzdrv", cancel.Token, lbPacketLog);
-//				device = new DeviceIO(@"\\.\COM1", cancel.Token, lbPacketLog);
+				dispatcher = new PacketDispatcher();
+				device = new DeviceIO(@"\\.\rmzdrv", cancel.Token, dispatcher);
 			}
 			catch (Exception exception)
 			{
@@ -40,7 +41,6 @@ namespace RMZGui
 
 		private void btnWrite_Click(object sender, EventArgs e)
 		{
-			device.Write(new byte[] { 30, 31, 32, 33 }, 0, 4);
 		}
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)

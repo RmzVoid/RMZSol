@@ -6,13 +6,6 @@ using System.Threading.Tasks;
 
 namespace RMZGui
 {
-	enum Source
-	{
-		NewConnection,
-		FromServer,
-		FromClient
-	}
-
 	public class Util
 	{
 		public static string ToHex(byte[] bytes, int offset, int count)

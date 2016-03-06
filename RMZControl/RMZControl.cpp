@@ -102,7 +102,6 @@ int main()
 		filterConnect.weight.type = FWP_EMPTY;
 		filterConnect.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 		filterConnect.action.calloutKey = rmzCalloutConnectGuid;
-		//filterConnect.rawContext = context;
 
 		status = FwpmFilterAdd(engine, &filterConnect, NULL, &filterConnect.filterId);
 

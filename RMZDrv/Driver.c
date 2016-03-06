@@ -48,6 +48,9 @@ void Unload(
 //
 UINT32 CalloutConnectId;
 UINT32 CalloutStreamId;
+HANDLE InjectionHandle;
+NDIS_HANDLE NBLPoolHandle; 
+ULONG NBLPoolTag = 'tlbN';
 PDEVICE_OBJECT DeviceObject = NULL;
 LPCWSTR wstrDeviceName = L"\\Device\\rmzdrv";
 LPCWSTR wstrSymlinkName = L"\\??\\rmzdrv";
@@ -114,15 +117,38 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driverObject, _In_ PUNICODE_STRING regi
 
 	if (!CheckStatus(status, "FwpsCalloutRegister(calloutStream)")) goto exit;
 
+	/* Register injection handle */
+	status = FwpsInjectionHandleCreate(AF_INET, FWPS_INJECTION_TYPE_STREAM, &InjectionHandle);
+
+	if (!CheckStatus(status, "FwpsInjectionHandleCreate")) goto exit;
+
+	/* Allocate net buffer list */
+	NET_BUFFER_LIST_POOL_PARAMETERS nblPoolParameters = { 0 };
+	nblPoolParameters.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+	nblPoolParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+	nblPoolParameters.Header.Size = sizeof(nblPoolParameters);
+	nblPoolParameters.ProtocolId = NDIS_PROTOCOL_ID_TCP_IP;
+	nblPoolParameters.fAllocateNetBuffer = TRUE;
+	nblPoolParameters.PoolTag = NBLPoolTag;
+	nblPoolParameters.DataSize = 0;
+	NBLPoolHandle = NdisAllocateNetBufferListPool(NULL, &nblPoolParameters);
+
+	if (NBLPoolHandle == NULL) { DbgPrint("NdisAllocateNetBufferListPool failed"); goto exit; }
+
 exit:
     return status;
-
+	
 	UNREFERENCED_PARAMETER(registryPath);
 }
 
 void DriverUnload(PDRIVER_OBJECT driverObject)
 {
 	NTSTATUS status;
+
+	//
+	// Destroy injection
+	status = FwpsInjectionHandleDestroy0(InjectionHandle);
+	CheckStatus(status, "FwpsInjectionHandleDestroy");
 
 	//
 	// Unregister connect callout
@@ -198,11 +224,12 @@ void NTAPI ClassifyFnStream(
 	UINT64 flowContext,
 	FWPS_CLASSIFY_OUT0* classifyOut)
 {
-	UNREFERENCED_PARAMETER(inMetaValues);
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(classifyContext);
+	UNREFERENCED_PARAMETER(flowContext);
 
-	classifyOut->actionType = FWP_ACTION_BLOCK;
+	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 
 	if (layerData == NULL)
 		return;
@@ -210,22 +237,38 @@ void NTAPI ClassifyFnStream(
 	FWPS_STREAM_CALLOUT_IO_PACKET* packet = layerData;
 	FWPS_STREAM_DATA* streamData = packet->streamData;
 
+	//
+	// check if packet was injected before, just permit it
+	FWPS_PACKET_INJECTION_STATE injectionState = FwpsQueryPacketInjectionState(InjectionHandle, streamData->netBufferListChain, NULL);
+
+	if (injectionState == FWPS_PACKET_PREVIOUSLY_INJECTED_BY_SELF || injectionState == FWPS_PACKET_INJECTED_BY_SELF)
+	{
+		classifyOut->actionType = FWP_ACTION_PERMIT;
+		return;
+	}
+
 	if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4)
 	{
 		if (streamData->flags & FWPS_STREAM_FLAG_RECEIVE_DISCONNECT || streamData->flags & FWPS_STREAM_FLAG_SEND_DISCONNECT)
-			classifyOut->actionType = FWP_ACTION_PERMIT;
-
-		SOURCE source = FROMSERVER;
-
-		switch (streamData->flags)
 		{
-		case FWPS_STREAM_FLAG_SEND:
-		case FWPS_STREAM_FLAG_RECEIVE_ABORT:
-		case FWPS_STREAM_FLAG_RECEIVE_DISCONNECT:
-			source = FROMCLIENT;
+			classifyOut->actionType = FWP_ACTION_PERMIT;
+			RmzQueuePacket(inMetaValues->flowHandle, DISCONNECT, NULL);
 		}
+		else if (streamData->flags & FWPS_STREAM_FLAG_RECEIVE_EXPEDITED || streamData->flags & FWPS_STREAM_FLAG_SEND_EXPEDITED)
+		{
+			classifyOut->actionType = FWP_ACTION_PERMIT;
+		}
+		else
+		{
+			classifyOut->actionType = FWP_ACTION_BLOCK;
 
-		RmzQueuePacket(flowContext,  source, streamData);
+			SOURCE source = FWPS_STREAM_FLAG_RECEIVE;
+
+			if (streamData->flags & FWPS_STREAM_FLAG_SEND)
+				source = FWPS_STREAM_FLAG_SEND;
+
+			RmzQueuePacket(inMetaValues->flowHandle, source, streamData);
+		}
 	}
 }
 
@@ -262,7 +305,8 @@ void FlowDeleteFn(
 	UNREFERENCED_PARAMETER(layerId);
 	UNREFERENCED_PARAMETER(calloutId);
 
-	RmzRemoveFlow((PFLOW)flowContext);
+	PFLOW flow = (PFLOW)flowContext;
+	RmzRemoveFlow(flow);
 
-	DbgPrint("FlowDeleteFn %llu\r\n", flowContext);
+	DbgPrint("FlowDeleteFn %llu\r\n", flow->flowId);
 }
