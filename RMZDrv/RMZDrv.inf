@@ -4,11 +4,11 @@
 
 [Version]
 Signature="$WINDOWS NT$"
-Class=Sample ; TODO: edit Class
-ClassGuid={B5449E00-8A06-4FEA-AEE8-7D4DD55F1E34} ; TODO: edit ClassGuid
+Class="Rmz driver" ; TODO: edit Class
+ClassGuid={B5449E00-8A06-4FEA-AEE8-7D4DD55F1E34}
 Provider=%ManufacturerName%
 CatalogFile=RMZDrv.cat
-DriverVer= ; TODO: set DriverVer in stampinf property pages
+DriverVer= 
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -85,7 +85,7 @@ KmdfLibraryVersion = $KMDFVERSION$
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
 ManufacturerName="" ; TODO: add ManufacturerName
-ClassName="Samples" ; TODO: edit ClassName
+ClassName="Rmz driver" ; TODO: edit ClassName
 DiskName = "RMZDrv Installation Disk"
 RMZDrv.DeviceDesc = "RMZDrv Device"
 RMZDrv.SVCDESC = "RMZDrv Service"

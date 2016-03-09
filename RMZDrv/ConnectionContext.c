@@ -41,7 +41,7 @@ void RmzQueuePacket(UINT64 flowId, SOURCE source, FWPS_STREAM_DATA* stream)
 	{
 		//
 		// allocated memory for packet data buffer
-		packet->data = ExAllocatePoolWithTag(NonPagedPool, sizeof(stream->dataLength), tag);
+		packet->data = ExAllocatePoolWithTag(NonPagedPool, stream->dataLength, tag);
 
 		if (!packet->data)
 		{
@@ -49,13 +49,10 @@ void RmzQueuePacket(UINT64 flowId, SOURCE source, FWPS_STREAM_DATA* stream)
 			return;
 		}
 
-		PVOID data = packet->data;
 		//
 		// copy stream data to our packet's buffer
-		FwpsCopyStreamDataToBuffer(stream, data, stream->dataLength, (PSIZE_T)&packet->dataSize);
-
-		packet->data = data;
-
+		FwpsCopyStreamDataToBuffer(stream, packet->data, stream->dataLength, (PSIZE_T)&packet->dataSize);
+		
 		//
 		// check if not all copied
 		if (packet->dataSize != stream->dataLength)

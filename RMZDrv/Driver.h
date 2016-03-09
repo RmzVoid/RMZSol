@@ -21,3 +21,4 @@
 extern HANDLE InjectionHandle;
 extern UINT32 CalloutStreamId;
 extern NDIS_HANDLE NBLPoolHandle;
+extern LONG AppStarted;

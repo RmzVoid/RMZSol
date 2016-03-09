@@ -46,7 +46,7 @@ NTSTATUS rmzDispatchRead(PDEVICE_OBJECT deviceObject, PIRP irp)
 	// here we place data which will be readed by user app
 	PVOID buffer = irp->AssociatedIrp.SystemBuffer;
 
-	UINT32 bytesMoved = 0;
+	UINT64 bytesMoved = 0;
 
 	if (stackLocation && buffer && bufferSize > 0)
 	{
@@ -60,8 +60,9 @@ NTSTATUS rmzDispatchRead(PDEVICE_OBJECT deviceObject, PIRP irp)
 				RmzBwInit(&bw, buffer, bufferSize);
 				RmzBwWriteUInt64(&bw, packet->flowId);
 				RmzBwWriteUInt32(&bw, packet->source);
-				RmzBwWriteUInt32(&bw, packet->dataSize);
-				if (packet->data)
+				RmzBwWriteUInt64(&bw, packet->dataSize);
+
+				if (packet->dataSize > 0 && packet->data)
 					RmzBwWriteBuffer(&bw, packet->dataSize, packet->data);
 
 				bytesMoved = bw.currentPosition;
@@ -127,20 +128,38 @@ NTSTATUS rmzDispatchWrite(PDEVICE_OBJECT deviceObject, PIRP irp)
 		RmzBrInit(&br, buffer, dataLength);
 		packet.flowId = RmzBrReadUInt64(&br);
 		packet.source = RmzBrReadUInt32(&br);
-		packet.dataSize = RmzBrReadUInt32(&br);
-		packet.data = RmzBrReadBuffer(&br, packet.dataSize, TRUE);
+		packet.dataSize = RmzBrReadUInt64(&br);
 
-		//
-		// allocate mdl with our data
-		mdl = IoAllocateMdl(packet.data, packet.dataSize, FALSE, FALSE, NULL);
-
-		if (!mdl)
+		if (packet.source == APPSTARTED)
 		{
-			status = STATUS_NO_MEMORY;
+			InterlockedExchange(&AppStarted, (LONG)TRUE);
+			DbgPrint("Control app started.\r\n");
 			goto exit;
 		}
 
-		MmBuildMdlForNonPagedPool(mdl);
+		if (packet.source == APPSTOPPED)
+		{
+			InterlockedExchange(&AppStarted, (LONG)FALSE);
+			DbgPrint("Control app stopped.\r\n");
+			goto exit;
+		}
+
+		if (packet.dataSize > 0)
+		{
+			packet.data = RmzBrReadBuffer(&br, packet.dataSize, TRUE);
+
+			//
+			// allocate mdl with our data
+			mdl = IoAllocateMdl(packet.data, (ULONG)packet.dataSize, FALSE, FALSE, NULL);
+
+			if (!mdl)
+			{
+				status = STATUS_NO_MEMORY;
+				goto exit;
+			}
+
+			MmBuildMdlForNonPagedPool(mdl);
+		}
 
 		//
 		// allocate net buffer list using our mdl

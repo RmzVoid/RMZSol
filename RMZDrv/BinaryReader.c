@@ -2,7 +2,7 @@
 
 ULONG BRTag = 'gtrB';
 
-void RmzBrInit(PBINARYREADER br, PVOID buffer, UINT32 size)
+void RmzBrInit(PBINARYREADER br, PVOID buffer, UINT64 size)
 {
 	br->buffer = buffer;
 	br->currentPosition = 0;
@@ -47,7 +47,7 @@ UINT8 RmzBrReadUInt8(PBINARYREADER br)
 
 //
 // Don't forget to free memory allocated for buffer
-PVOID RmzBrReadBuffer(PBINARYREADER br, UINT32 length, BOOL copy)
+PVOID RmzBrReadBuffer(PBINARYREADER br, UINT64 length, BOOL copy)
 {
 	NT_ASSERT((br->currentPosition + length) <= br->bufferSize);
 

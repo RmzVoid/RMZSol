@@ -39,7 +39,7 @@ void RmzBwWriteUInt8(PBINARYWRITER bw, UINT8 val)
 	bw->currentPosition += sizeof(UINT8);
 }
 
-void RmzBwWriteBuffer(PBINARYWRITER bw, UINT32 length, PVOID source)
+void RmzBwWriteBuffer(PBINARYWRITER bw, UINT64 length, PVOID source)
 {
 	NT_ASSERT((bw->currentPosition + length) <= bw->bufferSize);
 

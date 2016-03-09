@@ -56,6 +56,7 @@ LPCWSTR wstrDeviceName = L"\\Device\\rmzdrv";
 LPCWSTR wstrSymlinkName = L"\\??\\rmzdrv";
 UNICODE_STRING deviceName = { 0 };
 UNICODE_STRING symlinkName = { 0 };
+LONG AppStarted = FALSE;
 
 //
 // Entry point for dtiver
@@ -203,10 +204,13 @@ void NTAPI ClassifyFnConnect(
 	UNREFERENCED_PARAMETER(classifyContext);
 	UNREFERENCED_PARAMETER(flowContext);
 
-	if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
+	if (AppStarted)
 	{
-		RmzAddFlow(inMetaValues->flowHandle, CalloutStreamId);
-		RmzQueuePacket(inMetaValues->flowHandle, NEWCONNECTION, NULL);
+		if (inFixedValues->layerId == FWPS_LAYER_ALE_FLOW_ESTABLISHED_V4)
+		{
+			RmzAddFlow(inMetaValues->flowHandle, CalloutStreamId);
+			RmzQueuePacket(inMetaValues->flowHandle, NEWCONNECTION, NULL);
+		}
 	}
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
@@ -230,6 +234,12 @@ void NTAPI ClassifyFnStream(
 
 	if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
 		classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+
+	if (!AppStarted)
+	{
+		classifyOut->actionType = FWP_ACTION_PERMIT;
+		return;
+	}
 
 	if (layerData == NULL)
 		return;
